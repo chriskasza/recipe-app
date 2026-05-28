@@ -33,13 +33,18 @@ Canonical Markdown ↔ SQLite mirror with FTS5. Exercisable via CLI.
 - `tests/` — parser roundtrip (byte-identical), validator, sync idempotency + orphan removal, FTS5 search. 24 tests total.
 - `docs/recipe-format.md` — full schema, vocab, style conventions, roundtrip guarantee documented.
 
-## Stage 3 — Simple visualization layer (next)
+## Stage 3 — Simple visualization layer ✅
 
-- `GET /` library: search box (HTMX → FTS5), facet checkboxes (tags, cuisine, meal type, dietary), time slider, sort.
-- `GET /r/{slug}` clean, print-friendly read view using `markdown-it-py`.
-- Minimal CSS; Alpine.js for any client-side state.
+Read-only library + recipe detail pages, served from the existing SQLite/FTS5 mirror.
 
-## Stage 4 — CRUD
+- `app/db/queries.py` — `search_library` (FTS + AND-across/OR-within facets + sort), `facet_counts_{tags,cuisines,meal_types,dietary}` (counts re-scope under other filters), `list_meal_types`/`list_dietary`/`list_equipment`, `get_recipe_detail` facade.
+- `app/web/` — `library.py` (`GET /` full page, `GET /search` HTMX fragment with OOB facets), `recipe.py` (`GET /r/{slug}`), `deps.py` (cached `Settings` / `db_path` / `Jinja2Templates` providers; tests override `get_db_path`), `markdown.py` (singleton `MarkdownIt` + `md` Jinja filter).
+- `app/templates/` — `base.html` (Pico.css + HTMX + Alpine via CDN), `index.html`, `_facets.html` (search + sort + max-time slider + facet checkboxes), `_results.html` (recipe-card grid), `_search_response.html` (fragment + OOB facets), `recipe.html` (header chips, ingredients, body via `| md | safe`, optional nutrition, print button).
+- `app/static/style.css` — card grid, chips, `@media print`.
+- `app/main.py` — mounts `/static`, includes web router; `/healthz` unchanged.
+- `tests/` — `test_db_queries_library.py`, `test_web_library.py`, `test_web_recipe.py`; `conftest.py` gains `populated_db` + `client` fixtures. `test_sync_idempotent.py` derives recipe count from the corpus instead of hardcoding (corpus has grown to 7). 48 tests total.
+
+## Stage 4 — CRUD (next)
 
 - `GET /new`, `POST /new` create with inline validation.
 - `GET /r/{slug}/edit`, `POST /r/{slug}` edit — writes Markdown first, then `sync_one`.

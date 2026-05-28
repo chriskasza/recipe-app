@@ -1,0 +1,22 @@
+<header class="results-header">
+  <h2>Library</h2>
+  <p><small>{{ results | length }} recipe{{ '' if results | length == 1 else 's' }}</small></p>
+</header>
+{% if not results %}
+  <p><em>No recipes match these filters.</em></p>
+{% else %}
+<div class="recipe-grid">
+  {% for r in results %}
+  <article class="recipe-card">
+    <h3><a href="/r/{{ r.slug }}">{{ r.title }}</a></h3>
+    {% if r.summary %}<p>{{ r.summary }}</p>{% endif %}
+    <footer>
+      {% if r.cuisine %}<span class="chip chip-cuisine">{{ r.cuisine }}</span>{% endif %}
+      {% if r.total_minutes is not none %}<span class="chip chip-time">{{ r.total_minutes }} min</span>{% endif %}
+      {% for d in r.dietary %}<span class="chip chip-dietary">{{ d }}</span>{% endfor %}
+      {% for t in r.tags %}<span class="chip chip-tag">{{ t }}</span>{% endfor %}
+    </footer>
+  </article>
+  {% endfor %}
+</div>
+{% endif %}

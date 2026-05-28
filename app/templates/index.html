@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Recipes{% endblock %}
+{% block content %}
+<div class="library">
+  <aside id="facets" class="no-print">
+    {% include "_facets.html" %}
+  </aside>
+  <section id="results">
+    {% include "_results.html" %}
+  </section>
+</div>
+{% endblock %}

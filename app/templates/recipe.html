@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ d.recipe.title }}{% endblock %}
+{% block content %}
+<article class="recipe-detail">
+  <header>
+    <h1>{{ d.recipe.title }}</h1>
+    {% if d.recipe.archived %}<p class="archived-badge no-print"><em>This recipe is archived.</em></p>{% endif %}
+    <div class="chips">
+      {% if d.recipe.cuisine %}<span class="chip chip-cuisine">{{ d.recipe.cuisine }}</span>{% endif %}
+      {% for m in d.meal_types %}<span class="chip chip-meal">{{ m }}</span>{% endfor %}
+      {% for di in d.dietary %}<span class="chip chip-dietary">{{ di }}</span>{% endfor %}
+      {% for t in d.tags %}<span class="chip chip-tag">{{ t }}</span>{% endfor %}
+    </div>
+    <dl class="meta">
+      {% if d.recipe.prep_minutes is not none %}<dt>Prep</dt><dd>{{ d.recipe.prep_minutes }} min</dd>{% endif %}
+      {% if d.recipe.cook_minutes is not none %}<dt>Cook</dt><dd>{{ d.recipe.cook_minutes }} min</dd>{% endif %}
+      {% if d.recipe.total_minutes is not none %}<dt>Total</dt><dd>{{ d.recipe.total_minutes }} min</dd>{% endif %}
+      {% if d.recipe.servings is not none %}<dt>Servings</dt><dd>{{ d.recipe.servings }}</dd>{% endif %}
+    </dl>
+    {% if d.source_url or d.source_attribution %}
+    <p class="source">
+      Source:
+      {% if d.source_url %}<a href="{{ d.source_url }}" rel="nofollow noopener">{{ d.source_url }}</a>{% endif %}
+      {% if d.source_attribution %}<br><small>{{ d.source_attribution }}</small>{% endif %}
+    </p>
+    {% endif %}
+    <button type="button" class="no-print" onclick="window.print()">Print</button>
+  </header>
+
+  <aside class="ingredients">
+    <h2>Ingredients</h2>
+    <ul>
+      {% for ing in d.ingredients %}
+      <li>{{ ing.original_text }}{% if ing.optional %} <em>(optional)</em>{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% if d.equipment %}
+    <h3>Equipment</h3>
+    <ul>
+      {% for e in d.equipment %}<li>{{ e }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </aside>
+
+  <section class="body">
+    {{ d.body_markdown | md | safe }}
+  </section>
+
+  {% set nutrition = d.frontmatter.get('nutrition') %}
+  {% if nutrition %}
+  <details class="nutrition no-print">
+    <summary>Nutrition (per serving)</summary>
+    <dl>
+      {% for k, v in nutrition.items() %}
+        {% if v is not none %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endif %}
+      {% endfor %}
+    </dl>
+  </details>
+  {% endif %}
+</article>
+{% endblock %}

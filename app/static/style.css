@@ -1,0 +1,78 @@
+/* Stage 3 layout + chips. Pico.css provides the rest. */
+
+.library {
+  display: grid;
+  grid-template-columns: 16rem 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .library { grid-template-columns: 1fr; }
+}
+
+#filters details { margin-bottom: 0.5rem; }
+#filters label.facet-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.15rem 0;
+  font-size: 0.9rem;
+}
+#filters input[type="range"] { width: 100%; }
+
+.recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+.recipe-card {
+  border: 1px solid var(--pico-muted-border-color, #d8d8d8);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  background: var(--pico-card-background-color, #fff);
+}
+.recipe-card h3 { margin-top: 0; font-size: 1.1rem; }
+.recipe-card footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  padding: 0;
+  background: none;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  background: var(--pico-secondary-background, #ececec);
+  color: var(--pico-secondary, #444);
+}
+.chip-cuisine { background: #e3edf6; color: #1f4b72; }
+.chip-dietary { background: #e7f2e1; color: #2c5b1d; }
+.chip-time    { background: #fff1d6; color: #7a5410; }
+.chip-meal    { background: #f3e8f6; color: #5a2769; }
+
+.recipe-detail .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.5rem 0 1rem;
+}
+.recipe-detail .meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.75rem;
+  row-gap: 0.1rem;
+}
+.recipe-detail .meta dt { font-weight: bold; }
+
+@media print {
+  .no-print { display: none !important; }
+  body, main { background: white !important; color: black !important; }
+  main.container { max-width: 100%; padding: 0; }
+  article { break-inside: avoid; }
+  a[href]:after { content: " (" attr(href) ")"; font-size: 0.8em; }
+}
