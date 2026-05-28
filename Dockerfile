@@ -12,5 +12,5 @@ COPY app/ ./app/
 ENV PYTHONUNBUFFERED=1 \
     RECIPES_DIR=/app/recipes \
     DATA_DIR=/app/data
-EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 3141
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3141"]

@@ -48,7 +48,7 @@ mypy --strict app/
 # Populate ./recipes/ with some content (e.g. via the recipe-from-url skill),
 # then sync into SQLite and start the dev server
 recipes sync
-recipes run-dev           # http://127.0.0.1:8765/
+recipes run-dev           # http://127.0.0.1:3141/
 
 # Inspect the install (versions, recipe count, db count, last sync)
 recipes doctor
@@ -73,7 +73,7 @@ The SQLite mirror lives at `data/recipes.db` (gitignored). Wipe it any time — 
 ```bash
 docker compose build
 docker compose up -d
-curl http://localhost:8765/healthz
+curl http://localhost:3141/healthz
 ```
 
 `./recipes/` and `./data/` are bind-mounted from the host. Drop recipe files into `./recipes/`; the app picks them up on the next sync.
