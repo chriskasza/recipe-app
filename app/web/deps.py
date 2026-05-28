@@ -27,6 +27,10 @@ def get_db_path(settings: Annotated[Settings, Depends(get_settings)]) -> Path:
     return settings.db_path
 
 
+def get_recipes_dir(settings: Annotated[Settings, Depends(get_settings)]) -> Path:
+    return settings.recipes_dir
+
+
 @lru_cache(maxsize=1)
 def get_templates() -> Jinja2Templates:
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))

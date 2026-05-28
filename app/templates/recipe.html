@@ -24,7 +24,19 @@
       {% if d.source_attribution %}<br><small>{{ d.source_attribution }}</small>{% endif %}
     </p>
     {% endif %}
-    <button type="button" class="no-print" onclick="window.print()">Print</button>
+    <div class="recipe-actions no-print">
+      <button type="button" onclick="window.print()">Print</button>
+      <a href="/r/{{ d.recipe.slug }}/edit" role="button" class="secondary outline">Edit</a>
+      {% if d.recipe.archived %}
+      <form method="post" action="/r/{{ d.recipe.slug }}/unarchive" style="display:inline">
+        <button type="submit" class="outline">Unarchive</button>
+      </form>
+      {% else %}
+      <form method="post" action="/r/{{ d.recipe.slug }}/archive" style="display:inline">
+        <button type="submit" class="secondary outline">Archive</button>
+      </form>
+      {% endif %}
+    </div>
   </header>
 
   <aside class="ingredients">

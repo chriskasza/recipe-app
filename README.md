@@ -28,7 +28,7 @@ The app reads recipes from `$RECIPES_DIR` (default `./recipes/`, gitignored dev 
 
 **Stage 3 — simple visualization layer ✅** Read-only web UI. `GET /` library with search box, facet checkboxes (tags / cuisine / meal type / dietary), max-time slider, sort dropdown. `GET /search` returns an HTMX fragment with out-of-band facet refresh. `GET /r/{slug}` renders the recipe with Markdown body via `markdown-it-py` and a print-friendly stylesheet. Templates use Pico.css + HTMX + Alpine via CDN; one `app/static/style.css` for cards/chips/print. 48 tests.
 
-**Stage 4 — CRUD (next).** Create / edit / archive recipes through the canonical write pipeline.
+**Stage 4 — CRUD ✅** `GET/POST /new`, `GET/POST /r/{slug}/edit`, `POST /r/{slug}/archive|unarchive`. Hybrid form (structured metadata + Markdown body textarea + YAML ingredient textarea). All writes go through `build_markdown → write file → sync_one`. Slug immutable on edit. 68 tests.
 
 See [`TODO.md`](TODO.md) for the full roadmap and [`docs/architecture.md`](docs/architecture.md) for the principles.
 
@@ -41,7 +41,7 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 
 # Run tests / lint / types
-pytest                    # 48 tests
+pytest                    # 68 tests
 ruff check
 mypy --strict app/
 
@@ -85,9 +85,11 @@ recipe-app/
 ├── app/
 │   ├── core/         # canonical pipeline (Pydantic, parser, serializer)  — Stage 2
 │   ├── db/           # SQLite schema, sync, FTS5, library + facet queries — Stage 2–3
-│   ├── web/          # FastAPI routes, Jinja templates, MarkdownIt filter — Stage 3
-│   ├── templates/    # base, index, _facets, _results, recipe             — Stage 3
-│   ├── static/       # style.css (cards / chips / print)                  — Stage 3
+│   ├── web/          # FastAPI routes, Jinja templates, MarkdownIt filter — Stage 3–4
+│   │   ├── forms.py  # FormData, parse_form, build_markdown               — Stage 4
+│   │   └── crud.py   # /new, /r/{slug}/edit, /archive, /unarchive         — Stage 4
+│   ├── templates/    # base, index, _facets, _results, recipe, edit, _form — Stage 3–4
+│   ├── static/       # style.css (cards / chips / form layout / print)    — Stage 3–4
 │   ├── cli.py        # operator CLI (Typer)
 │   ├── config.py     # path/env settings
 │   └── main.py       # FastAPI app — /healthz, /static, web router

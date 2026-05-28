@@ -31,8 +31,10 @@ This file gives AI assistants the rules of the road for working in this repo.
 - `app/core/` — canonical pipeline. `models.py` (Pydantic), `parser.py`, `serializer.py`, `validator.py`, `vocab.py`, `ids.py`.
 - `app/db/` — `schema.sql` (single DDL file for now; migrations come if/when the schema needs to evolve in production), `connection.py`, `sync.py`, `queries.py` (typed read helpers including `search_library`, `facet_counts_*`, `get_recipe_detail`).
 - `app/web/` — FastAPI router + Jinja templates + Markdown filter.
-  - `library.py` (`GET /` full page, `GET /search` HTMX fragment with OOB facets), `recipe.py` (`GET /r/{slug}`), `deps.py` (cached `Settings` / `db_path` / `Jinja2Templates` providers — tests override `get_db_path`), `markdown.py` (singleton `MarkdownIt` + `md` Jinja filter), `__init__.py` (combined router).
-- `app/templates/` — `base.html` (Pico.css + HTMX + Alpine via pinned CDN versions), `index.html`, `_facets.html`, `_results.html`, `_search_response.html` (OOB wrapper for `/search`), `recipe.html`.
+  - `library.py` (`GET /` full page, `GET /search` HTMX fragment with OOB facets), `recipe.py` (`GET /r/{slug}`), `deps.py` (cached `Settings` / `db_path` / `Jinja2Templates` providers — tests override `get_db_path` **and** `get_recipes_dir`), `markdown.py` (singleton `MarkdownIt` + `md` Jinja filter), `__init__.py` (combined router).
+  - `forms.py` — `FormData` dataclass, `parse_form` (decodes `request.form()`), `build_markdown` (assembles canonical file text via ruamel `CommentedMap`), `slug_in_use`. Used by the CRUD layer.
+  - `crud.py` — `GET/POST /new`, `GET/POST /r/{slug}/edit`, `POST /r/{slug}/archive|unarchive`. All writes call `_write_and_sync` which restores the original file on `sync_one` failure.
+- `app/templates/` — `base.html` (Pico.css + HTMX + Alpine via pinned CDN versions), `index.html`, `_facets.html`, `_results.html`, `_search_response.html` (OOB wrapper for `/search`), `recipe.html`, `edit.html` + `_form.html` (shared form partial for new/edit).
 - `app/static/style.css` — card grid, chips, `@media print` rules. Pico.css covers the rest of the chrome.
 - `app/importer/` — URL → canonical draft (Stage 5, not yet created).
 - `app/ai/` — `LLMProvider` protocol + Ollama impl + retrieval/grounding (Stage 7, not yet created).
@@ -42,7 +44,7 @@ This file gives AI assistants the rules of the road for working in this repo.
 - `tests/fixtures/recipes/` — **frozen test corpus**. The 7 seed recipes committed to the repo. The parser roundtrip test and sync-idempotency test pin their behavior against this exact byte content — don't casually edit these files. Future test-only recipes go here too.
 - `data/` — SQLite DB. Gitignored. Wiped freely; `recipes rebuild-index` reproduces it.
 - `tmp/` — local scratch for log captures and transient outputs. Gitignored.
-- `tests/` — `test_parser_roundtrip.py`, `test_validator.py`, `test_sync_idempotent.py`, `test_fts_search.py`, `test_healthz.py`, `test_db_queries_library.py`, `test_web_library.py`, `test_web_recipe.py`. `conftest.py` provides `recipes_dir` (→ `tests/fixtures/recipes/`), `tmp_db`, `populated_db` (runs `sync_all` against the seed corpus), and `client` (TestClient with `get_db_path` overridden).
+- `tests/` — `test_parser_roundtrip.py`, `test_validator.py`, `test_sync_idempotent.py`, `test_fts_search.py`, `test_healthz.py`, `test_db_queries_library.py`, `test_web_library.py`, `test_web_recipe.py`, `test_web_crud.py`. `conftest.py` provides `recipes_dir` (→ `tests/fixtures/recipes/`), `tmp_db`, `populated_db`, `client` (read-only; `get_db_path` overridden), and `crud_client` (CRUD; both `get_db_path` and `get_recipes_dir` overridden to temp paths seeded from the fixture corpus).
 
 ## Recipe format
 
@@ -56,6 +58,17 @@ See `docs/recipe-format.md`. Structured fields (ingredients, times, tags) live i
 - Markdown → HTML goes through the `| md` Jinja filter (singleton `MarkdownIt` in `app/web/markdown.py`). Templates use `{{ ... | md | safe }}` because the corpus is trusted; if untrusted Markdown is ever ingested, add sanitization in that one file.
 - Tests use `client` fixture (TestClient + `get_db_path` override → `populated_db`). Don't monkey-patch `load_settings`.
 - Test counts that depend on the seed corpus should derive from `recipes_dir.glob("*.md")`, not hardcode a number — the corpus grows.
+
+## CRUD write conventions (Stage 4)
+
+- All writes flow through `app/web/forms.py::build_markdown` → `_write_and_sync` → `sync_one`. Never write to SQLite without first updating the Markdown file.
+- `build_markdown` constructs a ruamel `CommentedMap` with the same `_yaml()` settings as `serializer.py` (same instance; import `_yaml` from there). This ensures the generated file is roundtrip-stable immediately — no second-pass reformat needed.
+- Field order in the generated YAML: `id, slug, title, summary, cuisine, meal_type, tags, dietary, prep_minutes, cook_minutes, total_minutes, servings, yield_note, equipment, ingredients, nutrition, source, created_at, updated_at, archived`. Omit keys whose value is None or an empty list.
+- Flow style for short primitive lists (`meal_type`, `tags`, `dietary`, `equipment`); block style for `ingredients` (mappings) — enforced by `seq.fa.set_block_style()` on the parsed CommentedSeq.
+- Slug is derived from title via `normalize_slug()` on create; immutable on edit (the route path owns it). Collision check via `slug_in_use(recipes_dir, slug)` before writing.
+- Archive/unarchive mutate `doc.raw_yaml["archived"]` and `doc.raw_yaml["updated_at"]` in-place, then call `serialize(doc)`. This is the one place we ruamel-edit rather than rebuild — it preserves all other YAML formatting.
+- `_write_and_sync` saves the original file contents before overwriting and restores them if `sync_one` reports errors.
+- Tests for the CRUD layer use the `crud_client` fixture which overrides both `get_db_path` and `get_recipes_dir`. The read-only `client` fixture must **not** be modified to add `get_recipes_dir` — it intentionally has no writable recipes dir.
 
 ## Process
 

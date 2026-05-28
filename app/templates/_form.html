@@ -1,0 +1,190 @@
+{# Shared form partial for new and edit pages.
+   Context: mode, form, errors, warnings, action_url, slug,
+            meal_types (sorted list), dietary_flags (sorted list). #}
+
+{% macro field_errors(path) %}
+  {% for e in errors if e.path == path %}
+    <small class="error-msg">{{ e.message }}</small>
+  {% endfor %}
+{% endmacro %}
+
+{% macro is_invalid(path) %}
+  {% if errors | selectattr("path", "equalto", path) | list %}aria-invalid="true"{% endif %}
+{% endmacro %}
+
+<form method="post" action="{{ action_url }}">
+
+  {% if errors %}
+  <article class="error-summary">
+    <strong>Please fix the following errors:</strong>
+    <ul>
+      {% for e in errors %}
+      <li>{{ e.message }}{% if e.path and e.path != "slug" and e.path != "title" %} <small>({{ e.path }})</small>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </article>
+  {% endif %}
+
+  {% if warnings %}
+  <details>
+    <summary>{{ warnings | length }} warning{{ 's' if warnings | length != 1 }}</summary>
+    <ul>
+      {% for w in warnings %}
+      <li>{{ w.message }}{% if w.path %} <small>({{ w.path }})</small>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+  <fieldset>
+    <legend>Basic info</legend>
+
+    <label>
+      Title *
+      <input type="text" name="title" value="{{ form.title }}"
+             {{ is_invalid("title") }} required autocomplete="off">
+      {{ field_errors("title") }}
+      {{ field_errors("slug") }}
+    </label>
+
+    {% if mode == "edit" %}
+    <label>
+      Slug (immutable)
+      <input type="text" name="_slug_display" value="{{ slug }}" readonly>
+    </label>
+    {% endif %}
+
+    <label>
+      Summary
+      <input type="text" name="summary" value="{{ form.summary }}" autocomplete="off">
+    </label>
+
+    <label>
+      Cuisine
+      <input type="text" name="cuisine" value="{{ form.cuisine }}" autocomplete="off"
+             placeholder="e.g. italian, japanese, american">
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Meal type</legend>
+    <div class="checkbox-grid">
+      {% for mt in meal_types %}
+      <label>
+        <input type="checkbox" name="meal_type" value="{{ mt }}"
+               {% if mt in form.meal_type %}checked{% endif %}>
+        {{ mt }}
+      </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Dietary flags</legend>
+    <div class="checkbox-grid">
+      {% for df in dietary_flags %}
+      <label>
+        <input type="checkbox" name="dietary" value="{{ df }}"
+               {% if df in form.dietary %}checked{% endif %}>
+        {{ df }}
+      </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tags &amp; equipment</legend>
+    <label>
+      Tags <small>(comma-separated)</small>
+      <input type="text" name="tags" value="{{ form.tags }}" autocomplete="off"
+             placeholder="weeknight, pantry, one-pot">
+    </label>
+    <label>
+      Equipment <small>(comma-separated)</small>
+      <input type="text" name="equipment" value="{{ form.equipment }}" autocomplete="off"
+             placeholder="large skillet, wooden spoon">
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Times &amp; servings</legend>
+    <div class="time-grid">
+      <label>
+        Prep (min)
+        <input type="number" name="prep_minutes" value="{{ form.prep_minutes }}" min="0">
+      </label>
+      <label>
+        Cook (min)
+        <input type="number" name="cook_minutes" value="{{ form.cook_minutes }}" min="0">
+      </label>
+      <label>
+        Total (min)
+        <input type="number" name="total_minutes" value="{{ form.total_minutes }}" min="0">
+      </label>
+      <label>
+        Servings
+        <input type="number" name="servings" value="{{ form.servings }}" min="0">
+      </label>
+    </div>
+    <label>
+      Yield note
+      <input type="text" name="yield_note" value="{{ form.yield_note }}" autocomplete="off"
+             placeholder="e.g. 1 jar, 12 cookies">
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Source</legend>
+    <label>
+      URL
+      <input type="url" name="source_url" value="{{ form.source_url }}" autocomplete="off">
+    </label>
+    <label>
+      Attribution
+      <input type="text" name="source_attribution" value="{{ form.source_attribution }}" autocomplete="off">
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Ingredients</legend>
+    <p><small>Block-style YAML list. Each item needs at least <code>name</code> and <code>original</code>.</small></p>
+    <label>
+      <textarea name="ingredients_yaml" rows="14" class="mono"
+                {{ is_invalid("ingredients") }}>{{ form.ingredients_yaml }}</textarea>
+      {{ field_errors("ingredients") }}
+    </label>
+    <details>
+      <summary>Format reference</summary>
+      <pre>- name: olive oil
+  qty: 2
+  unit: tbsp
+  original: "2 Tbsp olive oil"
+- name: garlic
+  qty: 3
+  unit: clove
+  prep: minced
+  original: "3 cloves garlic, minced"
+- name: salt
+  optional: true
+  original: "salt to taste"</pre>
+    </details>
+  </fieldset>
+
+  <fieldset>
+    <legend>Body</legend>
+    <p><small>Markdown. Use <code>## Description</code>, <code>## Instructions</code>, <code>## Notes</code>, etc.</small></p>
+    <label>
+      <textarea name="body" rows="22">{{ form.body }}</textarea>
+    </label>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit">{{ "Create recipe" if mode == "new" else "Save changes" }}</button>
+    {% if mode == "edit" %}
+    <a href="/r/{{ slug }}" role="button" class="secondary outline">Cancel</a>
+    {% else %}
+    <a href="/" role="button" class="secondary outline">Cancel</a>
+    {% endif %}
+  </div>
+
+</form>

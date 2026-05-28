@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == "new" %}New recipe{% else %}Edit {{ recipe_title }}{% endif %}{% endblock %}
+{% block content %}
+<h1>{% if mode == "new" %}New recipe{% else %}Edit {{ recipe_title }}{% endif %}</h1>
+{% include "_form.html" %}
+{% endblock %}

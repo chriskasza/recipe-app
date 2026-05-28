@@ -52,12 +52,19 @@ Separated the frozen test corpus from the dev-runtime scratch directory.
 - `recipes/` — gitignored dev scratch. Populated via the `recipe-from-url` skill to validate app functionality. `RECIPES_DIR` defaults here so `recipes run-dev` picks it up.
 - `conftest.py` `recipes_dir` fixture and `test_parser_roundtrip.py` parametrize lookup both updated to point at `tests/fixtures/recipes/`.
 
-## Stage 4 — CRUD (next)
+## Stage 4 — CRUD ✅
 
 - `GET /new`, `POST /new` create with inline validation.
-- `GET /r/{slug}/edit`, `POST /r/{slug}` edit — writes Markdown first, then `sync_one`.
-- `POST /r/{slug}/archive` toggles `archived: true`.
-- Tests through FastAPI TestClient covering happy paths and validation errors.
+- `GET /r/{slug}/edit`, `POST /r/{slug}/edit` edit — writes Markdown first, then `sync_one`. Slug immutable on edit.
+- `POST /r/{slug}/archive` / `POST /r/{slug}/unarchive` toggle archived flag via ruamel in-place mutation + serialize.
+- `app/web/forms.py` — `FormData`, `parse_form`, `build_markdown` (ruamel CommentedMap, flow-style primitive lists, block-style ingredients).
+- `app/web/crud.py` — five routes + `_write_and_sync` (restores original on failure).
+- `app/web/deps.py` — `get_recipes_dir` provider; tests override it alongside `get_db_path`.
+- `app/templates/edit.html` + `_form.html` (shared form partial with inline error display).
+- `app/templates/base.html` + `recipe.html` — "New recipe" nav link + Edit/Archive/Unarchive buttons.
+- `python-multipart` added as runtime dep for form parsing.
+- `tests/conftest.py` — `crud_recipes_dir`, `crud_db`, `crud_client` fixtures (copy seed corpus to tmp dir).
+- `tests/test_web_crud.py` — 20 tests: create/edit/archive happy paths + collision/YAML/404 errors + roundtrip stability + sync idempotency.
 
 ## Stage 5 — URL importer
 

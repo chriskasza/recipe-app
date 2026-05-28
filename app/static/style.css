@@ -69,6 +69,41 @@
 }
 .recipe-detail .meta dt { font-weight: bold; }
 
+/* Stage 4 form layout */
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.25rem 1rem;
+}
+.checkbox-grid label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.time-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.5rem 1rem;
+}
+.time-grid label { margin: 0; }
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+.error-summary {
+  border-left: 4px solid var(--pico-del-color, #c0392b);
+  padding: 0.75rem 1rem;
+  background: var(--pico-del-background-color, #fdf2f2);
+}
+.error-msg { color: var(--pico-del-color, #c0392b); }
+textarea.mono { font-family: monospace; font-size: 0.875rem; }
+.recipe-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+.recipe-actions form { margin: 0; }
+
 @media print {
   .no-print { display: none !important; }
   body, main { background: white !important; color: black !important; }
