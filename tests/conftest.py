@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 @pytest.fixture
 def recipes_dir() -> Path:
     """The canonical seed recipes directory shipped with the project."""
-    return PROJECT_ROOT / "recipes"
+    return PROJECT_ROOT / "tests" / "fixtures" / "recipes"
 
 
 @pytest.fixture

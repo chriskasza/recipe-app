@@ -26,3 +26,6 @@ data/recipes.db-shm
 
 # Local scratch (transient outputs, log captures)
 tmp/
+
+# Developer scratch — populate via recipe-from-url skill; not committed
+/recipes/

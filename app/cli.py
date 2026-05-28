@@ -150,7 +150,7 @@ def show(slug: str) -> None:
 
 
 @app.command("run-dev")
-def run_dev(host: str = "127.0.0.1", port: int = 8000) -> None:
+def run_dev(host: str = "127.0.0.1", port: int = 8765) -> None:
     """Run uvicorn in dev mode with autoreload."""
     import uvicorn
 

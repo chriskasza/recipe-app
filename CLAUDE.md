@@ -4,7 +4,7 @@ This file gives AI assistants the rules of the road for working in this repo.
 
 ## Source-of-truth model (non-negotiable)
 
-- `recipes/*.md` is the **only** durable source of truth.
+- Markdown recipe files at `$RECIPES_DIR` are the **only** durable source of truth. In this repo `recipes/` is a gitignored dev scratch dir; the frozen test corpus lives in `tests/fixtures/recipes/`.
 - Every other artifact (SQLite DB, FTS5 index, web UI state) is derived and rebuildable.
 - All writes flow through ONE pipeline: `app.core.models.Recipe → app.core.serializer.serialize → write Markdown → app.db.sync.sync_one`. Never write to SQLite without first updating the Markdown file.
 - Sync is idempotent. Two consecutive `recipes sync` runs must produce zero changes. The test `tests/test_sync_idempotent.py` enforces this.
@@ -38,10 +38,11 @@ This file gives AI assistants the rules of the road for working in this repo.
 - `app/ai/` — `LLMProvider` protocol + Ollama impl + retrieval/grounding (Stage 7, not yet created).
 - `app/cli.py` — operator surface (Typer): `validate`, `sync`, `rebuild-index`, `search`, `show`, `doctor`, `run-dev`.
 - `app/config.py` — env-driven paths (`RECIPES_DIR`, `DATA_DIR`).
-- `recipes/` — canonical Markdown corpus. Hand-edited or written via the canonical pipeline.
+- `recipes/` — **gitignored** dev scratch workspace. Populated by the `recipe-from-url` skill so developers can validate app functionality with real recipes. Never committed. The app's `RECIPES_DIR` env var defaults here for `recipes run-dev`.
+- `tests/fixtures/recipes/` — **frozen test corpus**. The 7 seed recipes committed to the repo. The parser roundtrip test and sync-idempotency test pin their behavior against this exact byte content — don't casually edit these files. Future test-only recipes go here too.
 - `data/` — SQLite DB. Gitignored. Wiped freely; `recipes rebuild-index` reproduces it.
 - `tmp/` — local scratch for log captures and transient outputs. Gitignored.
-- `tests/` — `test_parser_roundtrip.py`, `test_validator.py`, `test_sync_idempotent.py`, `test_fts_search.py`, `test_healthz.py`, `test_db_queries_library.py`, `test_web_library.py`, `test_web_recipe.py`. `conftest.py` provides `recipes_dir`, `tmp_db`, `populated_db` (runs `sync_all` against the seed corpus), and `client` (TestClient with `get_db_path` overridden).
+- `tests/` — `test_parser_roundtrip.py`, `test_validator.py`, `test_sync_idempotent.py`, `test_fts_search.py`, `test_healthz.py`, `test_db_queries_library.py`, `test_web_library.py`, `test_web_recipe.py`. `conftest.py` provides `recipes_dir` (→ `tests/fixtures/recipes/`), `tmp_db`, `populated_db` (runs `sync_all` against the seed corpus), and `client` (TestClient with `get_db_path` overridden).
 
 ## Recipe format
 

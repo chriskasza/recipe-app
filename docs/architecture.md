@@ -5,9 +5,10 @@
 ```
                   ┌──────────────────────────────────────────────┐
                   │                                              │
-                  │            recipes/*.md  (Git)               │  ← CANONICAL
+                  │    Markdown recipe files  ($RECIPES_DIR)     │  ← CANONICAL
                   │       The only durable source of truth       │
-                  │                                              │
+                  │  (gitignored ./recipes/ in dev; point at     │
+                  │   any directory of .md files to rebuild)     │
                   └────────────┬─────────────────────┬───────────┘
                                │                     │
                   parse +      │                     │  read for grounding
@@ -38,7 +39,7 @@
 
 | Layer | Owns | Notes |
 |---|---|---|
-| `recipes/*.md` | Canonical content | Edited by humans, Git-tracked. |
+| `$RECIPES_DIR/*.md` | Canonical content | Edited by humans. In dev: `./recipes/` (gitignored scratch). Frozen test corpus in `tests/fixtures/recipes/`. |
 | `app/core/` | Schema, parsing, serialization, validation | The contract. Roundtrip is byte-stable. |
 | `app/db/` | Derived SQLite tables + FTS5 | Wiped freely. `rebuild-index` recreates from scratch. |
 | `app/web/` (Stage 3+) | HTTP, HTML rendering, forms | Reads from DB. Writes go through `core.serializer` then `db.sync.sync_one`. |

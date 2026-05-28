@@ -2,7 +2,7 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "8765:8000"
     volumes:
       - ./recipes:/app/recipes
       - ./data:/app/data

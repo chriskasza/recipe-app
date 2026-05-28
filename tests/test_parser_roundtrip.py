@@ -18,7 +18,7 @@ def _recipe_files(recipes_dir: Path) -> list[Path]:
     return sorted(p for p in recipes_dir.glob("*.md") if not p.name.startswith("_"))
 
 
-@pytest.mark.parametrize("recipe_path_name", [p.name for p in _recipe_files(Path(__file__).parent.parent / "recipes")])
+@pytest.mark.parametrize("recipe_path_name", [p.name for p in _recipe_files(Path(__file__).parent / "fixtures" / "recipes")])
 def test_roundtrip_byte_identical(recipes_dir: Path, recipe_path_name: str) -> None:
     path = recipes_dir / recipe_path_name
     original = path.read_text(encoding="utf-8")

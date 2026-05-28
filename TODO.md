@@ -44,6 +44,14 @@ Read-only library + recipe detail pages, served from the existing SQLite/FTS5 mi
 - `app/main.py` — mounts `/static`, includes web router; `/healthz` unchanged.
 - `tests/` — `test_db_queries_library.py`, `test_web_library.py`, `test_web_recipe.py`; `conftest.py` gains `populated_db` + `client` fixtures. `test_sync_idempotent.py` derives recipe count from the corpus instead of hardcoding (corpus has grown to 7). 48 tests total.
 
+## Stage 3.5 — Test fixture split ✅
+
+Separated the frozen test corpus from the dev-runtime scratch directory.
+
+- `tests/fixtures/recipes/` — 7 seed recipes committed to the repo; byte-stable; pinned by `test_parser_roundtrip.py` and `test_sync_idempotent.py`. Do not casually edit.
+- `recipes/` — gitignored dev scratch. Populated via the `recipe-from-url` skill to validate app functionality. `RECIPES_DIR` defaults here so `recipes run-dev` picks it up.
+- `conftest.py` `recipes_dir` fixture and `test_parser_roundtrip.py` parametrize lookup both updated to point at `tests/fixtures/recipes/`.
+
 ## Stage 4 — CRUD (next)
 
 - `GET /new`, `POST /new` create with inline validation.

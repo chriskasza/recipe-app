@@ -1,8 +1,8 @@
 # recipe-app
 
-A personal recipe management system. **Markdown files in `recipes/` are the source of truth.** Everything else — the SQLite mirror, the FTS5 index, the web UI, the importer, the AI assistance layer — is a derived, rebuildable projection of that corpus.
+A personal recipe management system. **Markdown recipe files are the source of truth.** Everything else — the SQLite mirror, the FTS5 index, the web UI, the importer, the AI assistance layer — is a derived, rebuildable projection of that corpus.
 
-If every service is deleted tomorrow, `git clone` of `recipes/` still gives you every recipe in a portable, hand-editable format.
+The app reads recipes from `$RECIPES_DIR` (default `./recipes/`, gitignored dev scratch). Point it at any directory of Markdown files and it rebuilds its entire derived state from there.
 
 ## Why this design
 
@@ -45,9 +45,10 @@ pytest                    # 48 tests
 ruff check
 mypy --strict app/
 
-# Sync the corpus into the SQLite mirror, then run the dev server
+# Populate ./recipes/ with some content (e.g. via the recipe-from-url skill),
+# then sync into SQLite and start the dev server
 recipes sync
-recipes run-dev           # http://127.0.0.1:8000/
+recipes run-dev           # http://127.0.0.1:8765/
 
 # Inspect the install (versions, recipe count, db count, last sync)
 recipes doctor
@@ -65,17 +66,17 @@ recipes search "tomato sauce"     # multi-word, rank-ordered
 recipes show miso-glazed-eggplant # pretty-print a recipe from the DB
 ```
 
-Recipes live under [`recipes/`](recipes/) and the SQLite mirror at `data/recipes.db` (gitignored). Wipe `data/recipes.db` any time — `recipes sync` reproduces it.
+The SQLite mirror lives at `data/recipes.db` (gitignored). Wipe it any time — `recipes sync` reproduces it from `$RECIPES_DIR`.
 
 ## Docker
 
 ```bash
 docker compose build
 docker compose up -d
-curl http://localhost:8000/healthz
+curl http://localhost:8765/healthz
 ```
 
-`recipes/` and `data/` are bind-mounted from the host. Edit recipes from your editor outside the container; the app sees changes immediately.
+`./recipes/` and `./data/` are bind-mounted from the host. Drop recipe files into `./recipes/`; the app picks them up on the next sync.
 
 ## Layout
 
@@ -90,10 +91,11 @@ recipe-app/
 │   ├── cli.py        # operator CLI (Typer)
 │   ├── config.py     # path/env settings
 │   └── main.py       # FastAPI app — /healthz, /static, web router
-├── recipes/          # CANONICAL — Markdown files, git-tracked
+├── recipes/          # dev scratch — gitignored, populated via recipe-from-url skill
 ├── data/             # DERIVED — SQLite DB, not committed
 ├── docs/             # architecture, recipe format
 └── tests/
+    └── fixtures/recipes/  # frozen test corpus — committed, byte-stable
 ```
 
 ## Docs
