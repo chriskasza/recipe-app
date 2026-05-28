@@ -128,7 +128,7 @@ To wire it up:
 1. **Extract the skill** to wherever you run `claude`:
    ```bash
    # With a running service:
-   docker compose cp app:/app/.claude/skills/recipe-from-url .claude/skills/recipe-from-url
+   docker compose cp app:/app/.claude/skills/recipe-from-url .claude/skills
    ```
    Place it under `.claude/skills/` in your working directory, or `~/.claude/skills/` for global use.
 
@@ -136,7 +136,7 @@ To wire it up:
    recipe URL. The skill fetches the page, maps fields, then pipes the payload into the
    running container:
    ```bash
-   docker compose exec -T app python /app/.claude/skills/recipe-from-url/scripts/build_draft.py < /tmp/recipe-payload.json
+   docker compose exec -T app python /app/.claude/skills/recipe-from-url/scripts/build_draft.py < tmp/recipe-payload.json
    ```
    The draft lands at `./recipes/_drafts/<slug>.md` via the mounted volume. Review it
    there and move it into `./recipes/` when satisfied.

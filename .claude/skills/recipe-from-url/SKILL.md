@@ -12,7 +12,8 @@ Given a URL like `https://example.com/grandmas-cookies`, this skill:
 1. Fetches the page and confirms it's a single complete meal recipe (not a roundup, not a blog post, not a paywalled stub).
 2. Extracts structured recipe data — preferring schema.org JSON-LD `Recipe` markup when present, falling back to the visible HTML otherwise.
 3. Maps that data to the project's canonical recipe schema (`docs/recipe-format.md`).
-4. Writes a draft to `recipes/_drafts/<slug>.md` via the project's canonical pipeline so the file gets a fresh ULID + UTC timestamps, validates clean, and is byte-stable on parse/serialize roundtrip.
+4. Downloads the hero image to `recipes/images/<slug>.<ext>` and wires it into the frontmatter `images`.
+5. Writes a draft to `recipes/_drafts/<slug>.md` via the project's canonical pipeline so the file gets a fresh ULID + UTC timestamps, validates clean, and is byte-stable on parse/serialize roundtrip.
 
 This is the manual bridge until `recipes import-url <url>` (TODO.md Stage 5) is built. The draft lives under `_drafts/` so the user can review and edit before promoting it to the canonical `recipes/` directory.
 
@@ -24,15 +25,34 @@ So this skill **always** writes through `scripts/build_draft.py`. That script ge
 
 ## Workflow
 
-### Step 1: Verify the URL points at a single complete recipe
+### Step 1: Fetch the page
 
-Use `WebFetch` with a prompt that returns BOTH (a) a yes/no recipe verdict with reasoning AND (b) the raw recipe content. Something like:
+**Primary path — `curl`.** Fetch the raw HTML into the project `tmp/` dir (create it if missing):
+
+```bash
+curl -sL --compressed \
+  -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36' \
+  '<url>' -o tmp/recipe-page.html
+```
+
+Curl is preferred over `WebFetch` here for two reasons:
+
+- **It dodges UA-based blocking.** `WebFetch` sends a fixed bot user agent with no way to override it (its only parameters are `url` and `prompt`), so bot-protected sites reject it. Curl lets us present a browser user agent.
+- **It preserves JSON-LD verbatim.** `WebFetch` converts the page to markdown with a small model, which routinely drops or mangles `<script type="application/ld+json">` blocks — exactly the structured data this skill wants. Raw HTML from curl keeps it intact.
+
+Then `Read` `tmp/recipe-page.html` (or `grep` for the `application/ld+json` block) to inspect the content yourself.
+
+**Fallback path — `WebFetch`.** If curl returns an HTTP error, an empty/near-empty body, a bot-challenge/CAPTCHA page, or HTML with no usable recipe content (a JS-rendered page that hydrates client-side), fall back to `WebFetch` with a prompt that returns BOTH (a) a yes/no recipe verdict with reasoning AND (b) the raw recipe content:
 
 > "Examine this page. Answer two things:
 > (1) Does it contain a single, complete meal recipe with both an ingredient list and step-by-step instructions? Reply 'RECIPE: yes' or 'RECIPE: no' and one short sentence of reasoning.
 > (2) If yes: extract the recipe data. Prefer the JSON-LD `<script type=\"application/ld+json\">` block verbatim if present. Otherwise dump the recipe title, ingredient list, instructions, prep/cook/total time, yield, author, hero image URL, description, and any tips / notes / substitutions / make-ahead text. Be literal — don't summarize."
 
-Treat the page as a recipe only if:
+If both curl and WebFetch fail to yield usable content, **stop and tell the user** — name what happened (blocked, JS-only, paywalled) and link them back to the URL.
+
+### Step 1b: Verify the URL points at a single complete recipe
+
+Whichever fetch path succeeded, treat the page as a recipe only if:
 
 - It clearly describes **one dish** (not "25 best chocolate chip cookies", not a navigation page).
 - It has both an ingredient list AND numbered/step-by-step instructions visible (or in the JSON-LD).
@@ -60,10 +80,11 @@ Read `docs/recipe-format.md` if you need a refresher on the schema. The mapping 
 | `recipeIngredient` line (raw string) | one `ingredients[]` entry | See "Ingredient parsing" below. |
 | `recipeInstructions` | `## Instructions` body section | Preserve numbered or bulleted structure. |
 | Long-form `description` | `## Description` body section | |
-| Tips / cook's notes | `## Notes` body section | Also put the hero image URL here. |
+| Tips / cook's notes | `## Notes` body section | |
 | Substitution suggestions | `## Substitutions` body section | |
 | Make-ahead / storage info | `## Make-ahead` body section | |
 | JSON-LD `nutrition.*` | `nutrition.*` | Strip units from values ("220 kcal" → `220`). |
+| JSON-LD `image` / hero `<img>` | download → `images[]` | Download the file (Step 3b) and reference it in `images`. See "Image handling" below. |
 
 #### Controlled vocabularies
 
@@ -88,23 +109,46 @@ When in doubt, leave the numeric/unit fields off and keep only `name` + `origina
 
 ### Step 3: Build the JSON payload
 
-Write a single JSON object matching the script's payload schema (full reference below). Save it to a temp file like `/tmp/recipe-payload.json` and pass it to the script.
+Write a single JSON object matching the script's payload schema (full reference below). Save it to the project's gitignored scratch dir, e.g. `tmp/recipe-payload.json` (relative to the repo root), and pass it to the script. Use the project `tmp/` rather than the system `/tmp` so reads/writes stay inside the workspace and don't trigger permission prompts. Create `tmp/` if it doesn't exist.
 
 Skip any field you don't have data for — empty/null fields are dropped on output. **Don't fabricate**: if the page doesn't give a cuisine, don't guess one.
 
+### Step 3b: Download the hero image
+
+If the page exposes a hero image (JSON-LD `image`, an `og:image` meta tag, or the main recipe `<img>`), download it so the draft ships with a local copy instead of a fragile remote URL.
+
+Name the file after the slug the draft will get — the normalized title, or the explicit `slug` you're passing for a non-ASCII title (so the filename and the draft stay in lockstep). Pick the extension from the image URL (`.jpg`, `.jpeg`, `.png`, `.webp`); default to `.jpg` if the URL has none. Download with curl and a browser user agent (CDNs hotlink-block bot agents), creating `recipes/images/` if needed:
+
+```bash
+curl -sL --compressed \
+  -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36' \
+  --create-dirs '<hero-image-url>' -o recipes/images/<slug>.<ext>
+```
+
+`recipes/` is the bind-mounted volume, so a file written here on the host is visible to the container at `/app/recipes/images/<slug>.<ext>` immediately.
+
+Then add it to the payload (path is **relative to `recipes/`**, so it's `images/<slug>.<ext>` — not `recipes/images/...`):
+
+```json
+"images": [{"path": "images/<slug>.<ext>", "alt": "<short description, e.g. the recipe title>"}]
+```
+
+Handle the unhappy paths:
+
+- **No hero image on the page** → omit `images` entirely. Don't invent one.
+- **Download fails** (403/404, HTML error page, zero bytes) → don't reference a file that isn't there. Omit `images`, and instead record the URL in `body.notes` as `Hero image (download failed): <url>` so the user can grab it manually. Verify the download actually produced a non-empty image (`test -s recipes/images/<slug>.<ext>`) before adding the `images` entry.
+
 ### Step 4: Run `scripts/build_draft.py`
 
-**Repo / dev (local checkout):**
-```bash
-.venv/bin/python .claude/skills/recipe-from-url/scripts/build_draft.py /tmp/recipe-payload.json
-```
-Use the project's venv (`.venv/bin/python`) — the script imports `app.core.*` which needs the project dependencies (`pydantic`, `ruamel.yaml`, `python-ulid`). The system `python` will fail with `ModuleNotFoundError`.
+Always run the script with the Docker image's Python — never the local `.venv`. The image is rebuilt after local changes, so its interpreter has the current `app.core.*` code and dependencies (`pydantic`, `ruamel.yaml`, `python-ulid`) installed exactly as deployed:
 
-**Docker deployment (no repo checkout):**
 ```bash
-docker compose exec -T app python /app/.claude/skills/recipe-from-url/scripts/build_draft.py < /tmp/recipe-payload.json
+docker compose exec -T app python /app/.claude/skills/recipe-from-url/scripts/build_draft.py < tmp/recipe-payload.json
 ```
+
 `-T` disables the TTY so the stdin redirect works. The payload stays on the host; the shell feeds it in. The script writes the draft to `/app/recipes/_drafts/` inside the container, which is the bind-mounted `./recipes/` volume, so the file appears on the host immediately. No `recipes sync` is needed — `_drafts/` is a review staging area, not part of the synced library.
+
+The `app` service must be up (`docker compose up -d app`) before running this. If `docker compose exec` reports the container isn't running, start it and retry.
 
 The script prints a JSON report to stdout. Read it:
 
@@ -117,7 +161,7 @@ Tell them:
 
 - Where the draft landed: `recipes/_drafts/<slug>.md`.
 - Any warnings the script returned, in plain language ("flagged the unit 'wedge' as unknown — you may want to change it to 'whole' or leave as-is").
-- The hero image URL captured in `## Notes` (so they can grab it manually and place under `recipes/images/`).
+- The hero image: if downloaded, where it landed (`recipes/images/<slug>.<ext>`) and that it's already wired into the frontmatter `images`; if the download failed, that the URL is parked in `## Notes` for them to fetch manually.
 - A reminder that the file is a draft — they should look it over and move it into `recipes/` when satisfied.
 
 ## JSON payload schema
@@ -146,10 +190,11 @@ The script accepts one JSON object. Only `title` and per-ingredient `name`+`orig
     {"name": "fresh thyme", "optional": true, "original": "A few sprigs of fresh thyme (optional)"}
   ],
   "nutrition": {"calories": 320, "protein_g": 18, "carbs_g": 30, "fat_g": 12},
+  "images": [{"path": "images/<slug>.jpg", "alt": "Recipe title"}],
   "body": {
     "description": "Optional long-form description (1-2 paragraphs).",
     "instructions": "1. First step.\n2. Second step.\n3. Third step.",
-    "notes": "Hero image (not yet downloaded): https://example.com/cdn/hero.jpg\n\n- Any cook's notes here.",
+    "notes": "- Any cook's notes here.",
     "substitutions": "- Use tofu instead of chicken.",
     "make_ahead": "Keeps 3 days refrigerated."
   }
@@ -158,13 +203,14 @@ The script accepts one JSON object. Only `title` and per-ingredient `name`+`orig
 
 ## Image handling
 
-This skill records image URLs but does NOT download them. Put the hero image URL in `body.notes` as a line like:
+This skill downloads the hero image (Step 3b) so the draft carries a local copy rather than a remote URL that can rot or hotlink-block. The mechanics:
 
-```
-Hero image (not yet downloaded): https://example.com/cdn/hero.jpg
-```
+- **Location:** `recipes/images/<slug>.<ext>`, named to match the draft's slug. `recipes/` is the bind-mounted volume, so the host download is visible inside the container.
+- **Frontmatter:** referenced via the `images` payload field as `{"path": "images/<slug>.<ext>", "alt": "..."}`. The `path` is relative to `recipes/` (per `docs/recipe-format.md`), so it's `images/<slug>.<ext>` — **not** `recipes/images/...`.
+- **Only the hero image.** If the page has a gallery or step-by-step photos, grab just the main/hero image. Don't bulk-download every `<img>`.
+- **Fallbacks:** if there's no hero image, omit `images`. If the download fails or yields a non-image (verify with `test -s`), omit `images` and park the URL in `body.notes` as `Hero image (download failed): <url>` so it isn't lost.
 
-Leave the frontmatter `images:` field unset. Once the user wants to use the image, they can fetch it themselves, place it at `recipes/images/<slug>.jpg`, and add an `images:` entry to the frontmatter.
+The image file is **not** committed (`recipes/` is gitignored dev scratch); it lives alongside the draft for local review.
 
 ## Edge cases
 
