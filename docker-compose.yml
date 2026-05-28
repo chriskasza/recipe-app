@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./recipes:/app/recipes
+      - ./data:/app/data
+    environment:
+      RECIPES_DIR: /app/recipes
+      DATA_DIR: /app/data
+    restart: unless-stopped

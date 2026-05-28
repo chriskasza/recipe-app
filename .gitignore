@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Tooling
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Derived state (rebuildable — never canonical)
+data/recipes.db
+data/recipes.db-wal
+data/recipes.db-shm
+
+# Editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
