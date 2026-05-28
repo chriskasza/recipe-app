@@ -18,6 +18,7 @@ through here so the source-of-truth model in CLAUDE.md is preserved.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -30,7 +31,8 @@ from app.core.parser import ParseError, parse_text  # noqa: E402
 from app.core.serializer import serialize  # noqa: E402
 from app.core.validator import IssueLevel  # noqa: E402
 
-DRAFTS_DIR = PROJECT_ROOT / "recipes" / "_drafts"
+_recipes_base = Path(os.environ["RECIPES_DIR"]) if "RECIPES_DIR" in os.environ else PROJECT_ROOT / "recipes"
+DRAFTS_DIR = _recipes_base / "_drafts"
 
 _YAML_SPECIAL_PREFIXES = ("-", "?", ":", "[", "{", "!", "&", "*", "|", ">", "'", '"', "%", "@", "`", "#", " ")
 
@@ -179,10 +181,7 @@ def _report(payload: dict, *, exit_code: int = 0) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) > 1:
-        raw = Path(sys.argv[1]).read_text(encoding="utf-8")
-    else:
-        raw = sys.stdin.read()
+    raw = Path(sys.argv[1]).read_text(encoding="utf-8") if len(sys.argv) > 1 else sys.stdin.read()
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as e:
@@ -219,12 +218,18 @@ def main() -> None:
     roundtrip_clean = canonical == text
 
     out_path = DRAFTS_DIR / f"{slug}.md"
+    def _rel(p: Path) -> str:
+        try:
+            return str(p.relative_to(PROJECT_ROOT))
+        except ValueError:
+            return str(p)
+
     if out_path.exists():
         _report(
             {
                 "status": "error",
                 "stage": "write",
-                "message": f"draft already exists: {out_path.relative_to(PROJECT_ROOT)}",
+                "message": f"draft already exists: {_rel(out_path)}",
                 "warnings": warnings,
             },
             exit_code=1,
@@ -236,7 +241,7 @@ def main() -> None:
     _report(
         {
             "status": "ok",
-            "path": str(out_path.relative_to(PROJECT_ROOT)),
+            "path": _rel(out_path),
             "slug": slug,
             "id": doc.recipe.id,
             "roundtrip_byte_stable": roundtrip_clean,

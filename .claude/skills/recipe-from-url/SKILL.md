@@ -94,11 +94,17 @@ Skip any field you don't have data for — empty/null fields are dropped on outp
 
 ### Step 4: Run `scripts/build_draft.py`
 
+**Repo / dev (local checkout):**
 ```bash
 .venv/bin/python .claude/skills/recipe-from-url/scripts/build_draft.py /tmp/recipe-payload.json
 ```
-
 Use the project's venv (`.venv/bin/python`) — the script imports `app.core.*` which needs the project dependencies (`pydantic`, `ruamel.yaml`, `python-ulid`). The system `python` will fail with `ModuleNotFoundError`.
+
+**Docker deployment (no repo checkout):**
+```bash
+docker compose exec -T app python /app/.claude/skills/recipe-from-url/scripts/build_draft.py < /tmp/recipe-payload.json
+```
+`-T` disables the TTY so the stdin redirect works. The payload stays on the host; the shell feeds it in. The script writes the draft to `/app/recipes/_drafts/` inside the container, which is the bind-mounted `./recipes/` volume, so the file appears on the host immediately. No `recipes sync` is needed — `_drafts/` is a review staging area, not part of the synced library.
 
 The script prints a JSON report to stdout. Read it:
 

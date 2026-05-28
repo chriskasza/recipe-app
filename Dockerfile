@@ -9,6 +9,7 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY app/ ./app/
+COPY .claude/skills/recipe-from-url/ ./.claude/skills/recipe-from-url/
 ENV PYTHONUNBUFFERED=1 \
     RECIPES_DIR=/app/recipes \
     DATA_DIR=/app/data

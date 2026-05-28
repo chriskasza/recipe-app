@@ -70,6 +70,8 @@ The SQLite mirror lives at `data/recipes.db` (gitignored). Wipe it any time — 
 
 ## Docker
 
+### Running from this repo (development)
+
 ```bash
 docker compose build
 docker compose up -d
@@ -77,6 +79,67 @@ curl http://localhost:3141/healthz
 ```
 
 `./recipes/` and `./data/` are bind-mounted from the host. Drop recipe files into `./recipes/`; the app picks them up on the next sync.
+
+### Using the image for your own recipe collection
+
+The image isn't published to a registry yet, so you build it locally and point a separate
+project at it. Both this `recipe-app` repo and your recipes project must live on the
+**same machine** — the freshly built image exists only in that machine's local Docker
+image store, with nothing to pull from elsewhere.
+
+1. **Build and tag the image** from this `recipe-app` repo (do this first — and again
+   whenever you pull new `recipe-app` changes, since the app is in active development):
+   ```bash
+   docker build -t recipe-app:latest .
+   ```
+
+2. **Create your recipes project** anywhere on the same machine — say `~/my-recipes/` —
+   with a `docker-compose.yml` that *consumes* the local image instead of building it:
+   ```yaml
+   services:
+     app:
+       image: recipe-app:latest
+       ports:
+         - "3141:3141"
+       volumes:
+         - ./recipes:/app/recipes
+         - ./data:/app/data
+       environment:
+         RECIPES_DIR: /app/recipes
+         DATA_DIR: /app/data
+       restart: unless-stopped
+   ```
+
+3. **Start it** from that project directory:
+   ```bash
+   docker compose up -d
+   curl http://localhost:3141/healthz
+   ```
+   Your recipes live in `./recipes/` and the derived SQLite DB in `./data/`, both
+   bind-mounted from your project. After rebuilding the image (step 1) to pick up new
+   `recipe-app` changes, run `docker compose up -d` again to recreate the container.
+
+### Importing recipes with Claude Code
+
+The image bundles the `recipe-from-url` skill at `/app/.claude/skills/recipe-from-url/`.
+The Claude Code CLI is **not** in the image — it runs on your host with your own account.
+To wire it up:
+
+1. **Extract the skill** to wherever you run `claude`:
+   ```bash
+   # With a running service:
+   docker compose cp app:/app/.claude/skills/recipe-from-url .claude/skills/recipe-from-url
+   ```
+   Place it under `.claude/skills/` in your working directory, or `~/.claude/skills/` for global use.
+
+2. **Run `claude`** in the directory that contains your `docker-compose.yml`. Paste a
+   recipe URL. The skill fetches the page, maps fields, then pipes the payload into the
+   running container:
+   ```bash
+   docker compose exec -T app python /app/.claude/skills/recipe-from-url/scripts/build_draft.py < /tmp/recipe-payload.json
+   ```
+   The draft lands at `./recipes/_drafts/<slug>.md` via the mounted volume. Review it
+   there and move it into `./recipes/` when satisfied.
 
 ## Layout
 
