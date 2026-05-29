@@ -1,21 +1,71 @@
+{% set gradients = [
+  "linear-gradient(135deg, hsl(14 62% 52%), hsl(28 70% 60%))",
+  "linear-gradient(135deg, hsl(36 72% 62%), hsl(46 80% 70%))",
+  "linear-gradient(135deg, hsl(184 38% 46%), hsl(168 40% 56%))",
+  "linear-gradient(135deg, hsl(96 32% 50%), hsl(78 42% 58%))",
+  "linear-gradient(135deg, hsl(338 44% 52%), hsl(350 56% 62%))",
+  "linear-gradient(135deg, hsl(258 28% 54%), hsl(286 30% 60%))"
+] %}
+
 <header class="results-header">
-  <h2>Library</h2>
-  <p><small>{{ results | length }} recipe{{ '' if results | length == 1 else 's' }}</small></p>
+  <p class="count"><b>{{ results | length }}</b> recipe{{ '' if results | length == 1 else 's' }}</p>
 </header>
+
+{# Active-filter chips. The ✕ unchecks the matching control in #filters and
+   lets HTMX re-run the search — no query-string rebuilding needed. #}
+<div class="active-filters">
+  {% macro chip(label, name, value) %}
+    <a class="filter-tag" href="#" role="button"
+       @click.prevent="(document.querySelector('#filters input[name=\'{{ name }}\'][value=\'{{ value }}\']') || {}).click?.()">
+      {{ label }} <span class="x">✕</span>
+    </a>
+  {% endmacro %}
+  {% if selected.q %}
+    <a class="filter-tag" href="/">“{{ selected.q }}” <span class="x">✕</span></a>
+  {% endif %}
+  {% for v in selected.meal_types %}{{ chip(v, 'meal', v) }}{% endfor %}
+  {% for v in selected.cuisines %}{{ chip(v, 'cuisine', v) }}{% endfor %}
+  {% for v in selected.dietary %}{{ chip(v, 'diet', v) }}{% endfor %}
+</div>
+
 {% if not results %}
-  <p><em>No recipes match these filters.</em></p>
+  <p class="empty-state">No recipes match these filters.</p>
 {% else %}
 <div class="recipe-grid">
   {% for r in results %}
-  <article class="recipe-card">
-    <h3><a href="/r/{{ r.slug }}">{{ r.title }}</a></h3>
-    {% if r.summary %}<p>{{ r.summary }}</p>{% endif %}
-    <footer>
-      {% if r.cuisine %}<span class="chip chip-cuisine">{{ r.cuisine }}</span>{% endif %}
-      {% if r.total_minutes is not none %}<span class="chip chip-time">{{ r.total_minutes }} min</span>{% endif %}
-      {% for d in r.dietary %}<span class="chip chip-dietary">{{ d }}</span>{% endfor %}
-      {% for t in r.tags %}<span class="chip chip-tag">{{ t }}</span>{% endfor %}
-    </footer>
+  <article class="card">
+    <div class="card-img" style="background: {{ gradients[loop.index0 % gradients | length] }}">
+      {% if r.hero_path %}
+        <img src="{% if r.hero_path.startswith('http') %}{{ r.hero_path }}{% else %}/media/{{ r.hero_path }}{% endif %}"
+             alt="{{ r.title }}" loading="lazy" onerror="this.remove()">
+      {% else %}
+        <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v7a2 2 0 0 0 2 2v9M8 3v7M6 3v7M18 3c-1.5 0-3 1.5-3 5s1 5 3 5m0-10v17"/></svg>
+      {% endif %}
+      <form class="fav-form no-print" method="post"
+            action="/r/{{ r.slug }}/{{ 'unfavorite' if r.favorite else 'favorite' }}?next=/"
+            x-data="{ on: {{ 'true' if r.favorite else 'false' }} }"
+            :action="'/r/{{ r.slug }}/' + (on ? 'unfavorite' : 'favorite') + '?next=/'"
+            @submit.prevent="fetch($el.action, {method:'POST'}).then(() => on = !on)">
+        <button type="submit" class="fav" :class="{ on: on }" aria-label="Toggle favorite">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21.5l8.8-8.8a5 5 0 0 0 0-7.1z"/></svg>
+        </button>
+      </form>
+      {% if r.total_minutes is not none %}
+      <span class="time">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+        {{ r.total_minutes }} min
+      </span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% if r.cuisine %}<span class="eyebrow">{{ r.cuisine }}</span>{% endif %}
+      <h3><a href="/r/{{ r.slug }}">{{ r.title }}</a></h3>
+      {% if r.summary %}<p class="summary">{{ r.summary }}</p>{% endif %}
+      <div class="card-foot">
+        {% for d in r.dietary %}<span class="chip chip-dietary">{{ d }}</span>{% endfor %}
+        {% for t in r.tags %}<span class="chip chip-tag">{{ t }}</span>{% endfor %}
+      </div>
+    </div>
   </article>
   {% endfor %}
 </div>

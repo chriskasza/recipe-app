@@ -303,6 +303,114 @@ def test_unarchive_unknown_slug_404(crud_client: TestClient) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Favorite / unfavorite
+# ---------------------------------------------------------------------------
+
+
+def test_favorite_writes_flag_and_shows_in_favorites_view(
+    crud_client: TestClient, crud_recipes_dir: Path
+) -> None:
+    resp = crud_client.post("/r/overnight-oats/favorite", follow_redirects=False)
+    assert resp.status_code == 303
+
+    text = (crud_recipes_dir / "overnight-oats.md").read_text()
+    assert "favorite: true" in text
+
+    favorites = crud_client.get("/?favorite=1")
+    assert "Overnight Oats" in favorites.text
+    # A recipe that wasn't favorited should not appear in the favorites view.
+    assert "Classic French Omelette" not in favorites.text
+
+
+def test_unfavorite_removes_from_favorites_view(
+    crud_client: TestClient, crud_recipes_dir: Path
+) -> None:
+    crud_client.post("/r/overnight-oats/favorite")
+    assert "Overnight Oats" in crud_client.get("/?favorite=1").text
+
+    resp = crud_client.post("/r/overnight-oats/unfavorite", follow_redirects=False)
+    assert resp.status_code == 303
+    text = (crud_recipes_dir / "overnight-oats.md").read_text()
+    assert "favorite: false" in text
+    assert "Overnight Oats" not in crud_client.get("/?favorite=1").text
+
+
+def test_favorite_honors_safe_next_redirect(crud_client: TestClient) -> None:
+    resp = crud_client.post(
+        "/r/overnight-oats/favorite?next=/r/overnight-oats", follow_redirects=False
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/r/overnight-oats"
+
+
+def test_favorite_rejects_offsite_next_redirect(crud_client: TestClient) -> None:
+    resp = crud_client.post(
+        "/r/overnight-oats/favorite?next=https://evil.example", follow_redirects=False
+    )
+    assert resp.status_code == 303
+    # Falls back to the recipe detail page rather than the external URL.
+    assert resp.headers["location"] == "/r/overnight-oats"
+
+
+def test_favorite_unknown_slug_404(crud_client: TestClient) -> None:
+    resp = crud_client.post("/r/no-such/favorite", follow_redirects=False)
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Image URL
+# ---------------------------------------------------------------------------
+
+HERO_URL = "https://example.com/hero.jpg"
+
+
+def test_new_post_with_image_url_writes_images_and_renders_hero(
+    crud_client: TestClient, crud_recipes_dir: Path
+) -> None:
+    data = _new_form(title="Photo Recipe")
+    data["image_url"] = HERO_URL
+    resp = crud_client.post("/new", data=data, follow_redirects=False)
+    assert resp.status_code == 303
+    slug = resp.headers["location"].removeprefix("/r/")
+
+    text = (crud_recipes_dir / f"{slug}.md").read_text()
+    assert "images:" in text
+    assert HERO_URL in text
+
+    detail = crud_client.get(f"/r/{slug}")
+    assert HERO_URL in detail.text  # absolute URL used directly as the hero src
+
+
+def test_edit_form_prefills_existing_image(crud_client: TestClient) -> None:
+    # The miso fixture references a local image path; the edit form should
+    # prefill it so saving doesn't drop the hero.
+    resp = crud_client.get("/r/miso-glazed-eggplant/edit")
+    assert resp.status_code == 200
+    assert 'name="image_url"' in resp.text
+    assert "images/miso-eggplant.jpg" in resp.text
+
+
+def test_edit_preserves_then_clears_image(
+    crud_client: TestClient, crud_recipes_dir: Path
+) -> None:
+    # Create with a hero, then an edit that keeps it preserves images[].
+    data = _new_form(title="Keeper")
+    data["image_url"] = HERO_URL
+    slug = crud_client.post(
+        "/new", data=data, follow_redirects=False
+    ).headers["location"].removeprefix("/r/")
+
+    keep = _new_form(title="Keeper")
+    keep["image_url"] = HERO_URL
+    crud_client.post(f"/r/{slug}/edit", data=keep, follow_redirects=False)
+    assert HERO_URL in (crud_recipes_dir / f"{slug}.md").read_text()
+
+    # An edit with the field blank removes the image.
+    crud_client.post(f"/r/{slug}/edit", data=_new_form(title="Keeper"), follow_redirects=False)
+    assert "images:" not in (crud_recipes_dir / f"{slug}.md").read_text()
+
+
+# ---------------------------------------------------------------------------
 # Roundtrip stability
 # ---------------------------------------------------------------------------
 

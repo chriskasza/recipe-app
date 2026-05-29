@@ -90,10 +90,10 @@ def _upsert_recipe(
           id, slug, title, summary, cuisine, servings,
           prep_minutes, cook_minutes, total_minutes,
           source_url, source_attribution,
-          archived, created_at, updated_at,
+          archived, favorite, created_at, updated_at,
           file_path, file_mtime,
           body_markdown, ingredient_names, frontmatter_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             recipe.id,
@@ -108,6 +108,7 @@ def _upsert_recipe(
             recipe.source.url if recipe.source else None,
             recipe.source.attribution if recipe.source else None,
             1 if recipe.archived else 0,
+            1 if recipe.favorite else 0,
             _iso(recipe.created_at),
             _iso(recipe.updated_at),
             str(path),

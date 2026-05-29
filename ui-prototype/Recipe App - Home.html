@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto" data-accent="rose" data-density="comfy">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Skillet — Recipes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Young+Serif&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="app.css" />
+<script src="image-slot.js"></script>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header class="site-header">
+  <a class="brand" href="#"><span>skillet</span><span class="dot">.</span></a>
+  <label class="search">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    <input type="text" placeholder="Search recipes, ingredients or tags…" />
+    <span class="kbd">⌘K</span>
+  </label>
+  <div class="header-actions">
+    <a class="navlink" href="#">My recipes</a>
+    <button class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="txt">Add recipe</span>
+    </button>
+    <div class="avatar">K</div>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- ============ SIDEBAR FILTERS ============ -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <h2>Filters</h2>
+      <button class="icon-btn" id="toggleAll" data-state="open" title="Collapse all" aria-label="Collapse all">−</button>
+      <button class="clear-link" id="clearAll">Clear all</button>
+    </div>
+
+    <!-- Category -->
+    <div class="fgroup">
+      <button class="fgroup-head"><span>Category</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+      <div class="fgroup-body">
+        <div class="fscroll" data-list="category"></div>
+      </div>
+    </div>
+
+    <!-- Cuisine -->
+    <div class="fgroup">
+      <button class="fgroup-head"><span>Cuisine</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+      <div class="fgroup-body">
+        <div class="fscroll" data-list="cuisine"></div>
+      </div>
+    </div>
+
+    <!-- Total time -->
+    <div class="fgroup">
+      <button class="fgroup-head"><span>Total time</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+      <div class="fgroup-body">
+        <div class="range">
+          <div class="range-track">
+            <div class="range-fill"></div>
+            <span class="range-knob a"></span>
+            <span class="range-knob b"></span>
+          </div>
+          <div class="range-vals"><span>15 min</span><span>60 min</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dietary -->
+    <div class="fgroup">
+      <button class="fgroup-head"><span>Dietary</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+      <div class="fgroup-body">
+        <div class="fscroll" data-list="dietary"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="main-head">
+      <div class="title-wrap">
+        <h1>All recipes</h1>
+        <span class="count"><b id="resCount">212</b> recipes · <span id="resCtx">Dinner, Mexican</span></span>
+      </div>
+      <button class="sort"><span class="label">Sort</span> Newest first
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+    </div>
+
+    <div class="active-filters" id="activeFilters">
+      <span class="tag">Dinner <span class="x">✕</span></span>
+      <span class="tag">Mexican <span class="x">✕</span></span>
+      <span class="tag">Under 30 min <span class="x">✕</span></span>
+    </div>
+
+    <div class="grid" id="grid"></div>
+  </main>
+
+</div>
+
+<div id="tweaks-root"></div>
+
+<!-- ============ SCRIPTS ============ -->
+<script>
+  /* ---------- filter option data ---------- */
+  const FILTERS = {
+    category: [
+      ["Dinner", 128, true], ["Breakfast", 54], ["Lunch", 66], ["Dessert", 71],
+      ["Salads", 39], ["Snacks", 22], ["Sides", 31], ["Soups", 18]
+    ],
+    cuisine: [
+      ["Italian", 62], ["Mexican", 44, true], ["Japanese", 28], ["Thai", 19],
+      ["Indian", 37], ["French", 24], ["Greek", 15], ["Korean", 21]
+    ],
+    dietary: [
+      ["Vegetarian", null, false, true], ["Vegan", null, true, true],
+      ["Gluten-free", null, false, true], ["Dairy-free", null, false, true],
+      ["Nut-free", null, false, true], ["Low-carb", null, false, true]
+    ]
+  };
+
+  const checkIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  function renderList(key) {
+    const wrap = document.querySelector(`[data-list="${key}"]`);
+    wrap.innerHTML = FILTERS[key].map(([name, count, on, radio]) => `
+      <label class="check${radio ? " radio" : ""}">
+        <input type="checkbox" ${on ? "checked" : ""} />
+        <span class="box">${checkIcon}</span>
+        <span class="name">${name}</span>
+        ${count != null ? `<span class="count">${count}</span>` : ""}
+      </label>`).join("");
+  }
+  Object.keys(FILTERS).forEach(renderList);
+
+  /* ---------- recipe data ---------- */
+  const RECIPES = [
+    { n: "Chipotle Black Bean Tacos", c: "Dinner", t: "25 min", r: 4.8, rev: 214, tags: ["Mexican", "Vegan"], g: 0 },
+    { n: "Lemon Ricotta Pancakes", c: "Breakfast", t: "20 min", r: 4.6, rev: 98, tags: ["Brunch"], g: 1 },
+    { n: "Miso-Glazed Salmon", c: "Dinner", t: "30 min", r: 4.9, rev: 176, tags: ["Japanese"], g: 2 },
+    { n: "Charred Corn & Halloumi Salad", c: "Salads", t: "15 min", r: 4.5, rev: 64, tags: ["Vegetarian"], g: 3 },
+    { n: "Brown Butter Choc Cookies", c: "Dessert", t: "35 min", r: 4.9, rev: 320, tags: ["Baking"], g: 4 },
+    { n: "Tomato & White Bean Stew", c: "Dinner", t: "40 min", r: 4.4, rev: 51, tags: ["Vegan"], g: 5 },
+    { n: "Green Shakshuka", c: "Breakfast", t: "25 min", r: 4.7, rev: 142, tags: ["Eggs", "Veg"], g: 3 },
+    { n: "Coconut Chicken Curry", c: "Dinner", t: "45 min", r: 4.8, rev: 203, tags: ["Thai"], g: 0 },
+    { n: "Roasted Beet Hummus", c: "Snacks", t: "15 min", r: 4.3, rev: 38, tags: ["Dip", "Vegan"], g: 5 },
+    { n: "Spiced Carrot Cake", c: "Dessert", t: "55 min", r: 4.8, rev: 167, tags: ["Baking"], g: 1 },
+    { n: "Crispy Gnocchi & Sage", c: "Dinner", t: "20 min", r: 4.7, rev: 129, tags: ["Italian"], g: 4 },
+    { n: "Simple Omelette", c: "Breakfast", t: "10 min", r: 4.5, rev: 88, tags: ["Eggs", "Quick"], g: 2 },
+  ];
+
+  // warm, appetizing gradient palettes for photo placeholders
+  const GRADIENTS = [
+    "linear-gradient(135deg, hsl(14 62% 52%), hsl(28 70% 60%))",   // terracotta
+    "linear-gradient(135deg, hsl(36 72% 62%), hsl(46 80% 70%))",   // honey
+    "linear-gradient(135deg, hsl(184 38% 46%), hsl(168 40% 56%))", // teal-herb
+    "linear-gradient(135deg, hsl(96 32% 50%), hsl(78 42% 58%))",   // olive
+    "linear-gradient(135deg, hsl(338 44% 52%), hsl(350 56% 62%))", // rose-plum
+    "linear-gradient(135deg, hsl(258 28% 54%), hsl(286 30% 60%))"  // plum
+  ];
+
+  const utensils = '<svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v7a2 2 0 0 0 2 2v9M8 3v7M6 3v7M18 3c-1.5 0-3 1.5-3 5s1 5 3 5m0-10v17"/></svg>';
+  const plus = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+  const heart = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21.5l8.8-8.8a5 5 0 0 0 0-7.1z"/></svg>';
+  const star = '<svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.8.7-5.1 4.6 1.4 6.7L12 17.8 6 21l1.4-6.7L2.3 9.7l6.8-.7z"/></svg>';
+  const clock = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>';
+
+  function cardHTML(x, i) {
+    return `<article class="card">
+      <div class="card-img" style="background:${GRADIENTS[x.g]}">
+        ${utensils}
+        <image-slot class="card-slot" id="recipe-photo-${i}" shape="rect" fit="cover" placeholder="Add a photo"></image-slot>
+        <div class="add-hint"><span>${plus} Add photo</span></div>
+        <button class="fav${i % 5 === 0 ? " on" : ""}" aria-label="Save recipe">${heart}</button>
+        <span class="time">${clock} ${x.t}</span>
+      </div>
+      <div class="card-body">
+        <span class="eyebrow">${x.c}</span>
+        <h3>${x.n}</h3>
+        <div class="tags">${x.tags.map(t => `<span class="chip">${t}</span>`).join("")}</div>
+        <div class="meta">
+          <span class="rating">${star} ${x.r}</span>
+          <span class="sep"></span>
+          <span>${x.rev} reviews</span>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  document.getElementById("grid").innerHTML = RECIPES.map(cardHTML).join("");
+
+  /* ---------- image-slot: fall back to gradient placeholder when the
+     stored image fails to load (broken data-url / removed file) ---------- */
+  document.querySelectorAll(".card-slot").forEach(slot => {
+    const img = slot.shadowRoot && slot.shadowRoot.querySelector("img");
+    if (!img) return;
+    img.addEventListener("error", () => {
+      // hide the broken image so the gradient + glyph beneath shows through
+      img.style.display = "none";
+      slot.removeAttribute("data-filled");
+    });
+  });
+
+  /* ---------- favorite toggle + navigate to detail ---------- */
+  document.getElementById("grid").addEventListener("click", (e) => {
+    const fav = e.target.closest(".fav");
+    if (fav) { e.stopPropagation(); fav.classList.toggle("on"); return; }
+    // clicking the card body (title/meta) opens the recipe; the image area
+    // is reserved for the photo slot (drop / browse).
+    if (e.target.closest(".card-body")) {
+      window.location.href = "Recipe App \u2014 Detail.html";
+    }
+  });
+
+  /* ---------- collapsible sections ---------- */
+  const groups = () => document.querySelectorAll(".fgroup");
+  document.querySelectorAll(".fgroup-head").forEach(head => {
+    head.addEventListener("click", () => {
+      head.closest(".fgroup").classList.toggle("collapsed");
+      syncToggleAll();
+    });
+  });
+
+  /* ---------- expand / collapse all ---------- */
+  const toggleAllBtn = document.getElementById("toggleAll");
+  function syncToggleAll() {
+    const anyOpen = [...groups()].some(g => !g.classList.contains("collapsed"));
+    toggleAllBtn.dataset.state = anyOpen ? "open" : "closed";
+    toggleAllBtn.textContent = anyOpen ? "−" : "+";
+    const label = anyOpen ? "Collapse all" : "Expand all";
+    toggleAllBtn.title = label;
+    toggleAllBtn.setAttribute("aria-label", label);
+  }
+  toggleAllBtn.addEventListener("click", () => {
+    const collapse = toggleAllBtn.dataset.state === "open";
+    groups().forEach(g => g.classList.toggle("collapsed", collapse));
+    syncToggleAll();
+  });
+  syncToggleAll();
+
+  /* ---------- active filter tags + clear ---------- */
+  document.getElementById("activeFilters").addEventListener("click", (e) => {
+    if (e.target.classList.contains("x")) e.target.closest(".tag").remove();
+  });
+  document.getElementById("clearAll").addEventListener("click", () => {
+    document.getElementById("activeFilters").innerHTML = "";
+    document.querySelectorAll(".check input").forEach(c => { c.checked = false; });
+  });
+</script>
+
+<!-- React + Babel for the tweaks panel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="app-tweaks.jsx"></script>
+
+</body>
+</html>

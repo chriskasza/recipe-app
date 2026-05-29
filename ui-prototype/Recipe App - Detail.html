@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto" data-accent="rose" data-density="comfy">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chipotle Black Bean Tacos — Skillet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Young+Serif&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="app.css" />
+<link rel="stylesheet" href="detail.css" />
+<script src="image-slot.js"></script>
+</head>
+<body>
+
+<!-- ============ HEADER (shared) ============ -->
+<header class="site-header">
+  <a class="brand" href="Recipe App — Home.html"><span>skillet</span><span class="dot">.</span></a>
+  <label class="search">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    <input type="text" placeholder="Search recipes, ingredients or tags…" />
+    <span class="kbd">⌘K</span>
+  </label>
+  <div class="header-actions">
+    <a class="navlink" href="#">My recipes</a>
+    <button class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="txt">Add recipe</span>
+    </button>
+    <div class="avatar">K</div>
+  </div>
+</header>
+
+<div class="detail">
+  <a class="back" href="Recipe App — Home.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    All recipes
+  </a>
+
+  <article class="recipe">
+    <!-- hero photo (fillable, gradient fallback) -->
+    <div class="hero" style="background:linear-gradient(135deg, hsl(14 62% 52%), hsl(28 70% 60%))">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v7a2 2 0 0 0 2 2v9M8 3v7M6 3v7M18 3c-1.5 0-3 1.5-3 5s1 5 3 5m0-10v17"/></svg>
+      <image-slot class="hero-slot" id="detail-hero" shape="rect" fit="cover" placeholder="Add a photo"></image-slot>
+      <div class="hero-hint"><span>＋ Add hero photo</span></div>
+    </div>
+
+    <div class="recipe-body">
+      <header class="recipe-head">
+        <span class="eyebrow">Dinner · Mexican</span>
+        <h1>Chipotle Black Bean Tacos</h1>
+        <div class="recipe-stats">
+          <span class="stat rating">
+            <svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.8.7-5.1 4.6 1.4 6.7L12 17.8 6 21l1.4-6.7L2.3 9.7l6.8-.7z"/></svg>
+            <b>4.8</b> (214)
+          </span>
+          <span class="stat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+            <b>25 min</b>
+          </span>
+          <span class="stat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
+            Serves <b>4</b>
+          </span>
+          <button class="save-btn" id="saveBtn" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21.5l8.8-8.8a5 5 0 0 0 0-7.1z"/></svg>
+            Save
+          </button>
+        </div>
+      </header>
+
+      <p class="lead">A weeknight hero that comes together in under half an hour. Smoky chipotle black beans pile into warm tortillas with charred corn, quick-pickled red onion, and a cooling lime crema — the kind of dinner that tastes like you fussed when you really didn't.</p>
+
+      <div class="tag-row">
+        <span class="chip">Vegan</span>
+        <span class="chip">High-protein</span>
+        <span class="chip">30 minutes or less</span>
+        <span class="chip">One pan</span>
+      </div>
+
+      <!-- prep time callout -->
+      <section class="prep">
+        <h2>Preparation time</h2>
+        <ul>
+          <li><b>Total:</b> approximately 25 minutes</li>
+          <li><b>Preparation:</b> 10 minutes</li>
+          <li><b>Cooking:</b> 15 minutes</li>
+        </ul>
+      </section>
+
+      <!-- ingredients -->
+      <section class="section">
+        <h2>Ingredients</h2>
+        <ul class="ingredients">
+          <li><span><b>2 tins</b> (400g each) black beans, drained and rinsed</span></li>
+          <li><span><b>2 tsp</b> chipotle paste, plus more to taste</span></li>
+          <li><span><b>1</b> small red onion, half finely sliced for pickling</span></li>
+          <li><span><b>1</b> corn cob, kernels sliced off (or 150g frozen)</span></li>
+          <li><span><b>8</b> small corn or flour tortillas, warmed</span></li>
+          <li><span><b>1</b> lime, plus extra wedges to serve</span></li>
+          <li><span><b>4 tbsp</b> soy or coconut yoghurt, for the crema</span></li>
+          <li><span><b>1 tbsp</b> olive oil, plus a pinch each of cumin and salt</span></li>
+          <li><span>Fresh coriander and sliced avocado, to serve</span></li>
+        </ul>
+      </section>
+
+      <!-- instructions -->
+      <section class="section">
+        <h2>Instructions</h2>
+        <ol class="steps">
+          <li><span class="stxt"><b>Quick-pickle the onion.</b> Toss the sliced red onion with the juice of half a lime and a pinch of salt. Set aside to soften while you cook everything else.</span></li>
+          <li><span class="stxt"><b>Char the corn.</b> Heat the oil in a large pan over high heat. Add the corn kernels and cook, undisturbed, for 3–4 minutes until blistered and golden, then tip onto a plate.</span></li>
+          <li><span class="stxt"><b>Build the beans.</b> Lower the heat to medium. Add the black beans, chipotle paste, cumin and a splash of water. Simmer for 6–8 minutes, mashing lightly, until thick and glossy.</span></li>
+          <li><span class="stxt"><b>Make the crema.</b> Stir the yoghurt with the remaining lime juice and a pinch of salt until pourable.</span></li>
+          <li><span class="stxt"><b>Assemble.</b> Spoon the beans into warm tortillas. Top with charred corn, pickled onion, avocado and coriander, then finish with crema and a squeeze of lime.</span></li>
+        </ol>
+      </section>
+
+      <!-- nutrition -->
+      <section class="section">
+        <h2>Nutrition</h2>
+        <p class="nutri-intro">The table below shows nutritional values per serving (2 tacos). Values are approximate and will vary with toppings.</p>
+        <div class="nutri">
+          <div class="row"><span class="k">Calories</span><span class="v">412 kcal</span></div>
+          <div class="row"><span class="k">Carbs</span><span class="v">58 g</span></div>
+          <div class="row"><span class="k">Protein</span><span class="v">17 g</span></div>
+          <div class="row"><span class="k">Fat</span><span class="v">13 g</span></div>
+          <div class="row"><span class="k">Fibre</span><span class="v">14 g</span></div>
+        </div>
+      </section>
+    </div>
+  </article>
+</div>
+
+<div id="tweaks-root"></div>
+
+<!-- ============ SCRIPTS ============ -->
+<script>
+  // save toggle
+  const saveBtn = document.getElementById("saveBtn");
+  saveBtn.addEventListener("click", () => {
+    const on = saveBtn.classList.toggle("on");
+    saveBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    saveBtn.lastChild.textContent = on ? " Saved" : " Save";
+  });
+
+  // hero image-slot: fall back to gradient if the stored image fails to load
+  const hero = document.querySelector("#detail-hero");
+  const heroImg = hero && hero.shadowRoot && hero.shadowRoot.querySelector("img");
+  if (heroImg) heroImg.addEventListener("error", () => {
+    heroImg.style.display = "none";
+    hero.removeAttribute("data-filled");
+  });
+</script>
+
+<!-- React + Babel for the tweaks panel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="app-tweaks.jsx"></script>
+
+</body>
+</html>

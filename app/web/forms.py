@@ -36,6 +36,8 @@ class FormData:
     equipment: str = ""
     source_url: str = ""
     source_attribution: str = ""
+    image_url: str = ""
+    favorite: bool = False
     ingredients_yaml: str = ""
     body: str = ""
 
@@ -55,6 +57,8 @@ class FormData:
             "equipment": self.equipment,
             "source_url": self.source_url,
             "source_attribution": self.source_attribution,
+            "image_url": self.image_url,
+            "favorite": self.favorite,
             "ingredients_yaml": self.ingredients_yaml,
             "body": self.body,
         }
@@ -85,6 +89,8 @@ def parse_form(raw: Any) -> FormData:
         equipment=get("equipment"),
         source_url=get("source_url"),
         source_attribution=get("source_attribution"),
+        image_url=get("image_url"),
+        favorite=bool(raw.get("favorite")),
         # No strip: preserve leading/trailing newlines in multi-line fields
         ingredients_yaml=raw.get("ingredients_yaml") or "",
         body=raw.get("body") or "",
@@ -225,9 +231,21 @@ def build_markdown(
             src["attribution"] = source_attr
         cm["source"] = src
 
+    # Single hero image. Stored as a block-style list of {path} mappings to
+    # match the corpus shape; carries an existing image through edits so the
+    # write path no longer strips it.
+    if form.image_url:
+        img = CommentedMap()
+        img["path"] = form.image_url
+        images_seq = CommentedSeq([img])
+        images_seq.fa.set_block_style()
+        img.fa.set_block_style()
+        cm["images"] = images_seq
+
     cm["created_at"] = created_at_str
     cm["updated_at"] = now_str
     cm["archived"] = existing_archived
+    cm["favorite"] = form.favorite
 
     buf = io.StringIO()
     _yaml().dump(cm, buf)
