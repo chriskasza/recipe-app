@@ -2,11 +2,24 @@
 
 Work is delivered in validated stages. Each stage ends with a working commit and a verification checklist.
 
+## Module architecture
+
+The project is a **modular system layered on one durable core** — a repository of Markdown recipe
+files (the only source of truth). Each capability is an optional module that reads/writes the
+corpus through the canonical pipeline. See [`docs/architecture.md`](docs/architecture.md) for the
+module map, statuses, and decision records, and [`GETTING-STARTED.md`](GETTING-STARTED.md) for how
+modules are (eventually) toggled per deployment.
+
 Architectural principles apply to every stage:
-1. `recipes/*.md` is the only source of truth.
+1. `$RECIPES_DIR/**/*.md` is the only source of truth.
 2. All writes go through the canonical pipeline: `Recipe → serialize → Markdown → sync SQLite`.
 3. Sync is idempotent and the DB is fully rebuildable from the corpus.
 4. Serializer roundtrip is byte-stable.
+5. Modules are optional and removable; `app/core/` stays a dependency-free library.
+
+---
+
+# Completed
 
 ## Stage 1 — Scaffold ✅
 
@@ -61,12 +74,92 @@ Separated the frozen test corpus from the dev-runtime scratch directory.
 - `app/web/crud.py` — five routes + `_write_and_sync` (restores original on failure).
 - `app/web/deps.py` — `get_recipes_dir` provider; tests override it alongside `get_db_path`.
 - `app/templates/edit.html` + `_form.html` (shared form partial with inline error display).
-- `app/templates/base.html` + `recipe.html` — "New recipe" nav link + Edit/Archive/Unarchive buttons.
 - `python-multipart` added as runtime dep for form parsing.
 - `tests/conftest.py` — `crud_recipes_dir`, `crud_db`, `crud_client` fixtures (copy seed corpus to tmp dir).
 - `tests/test_web_crud.py` — 20 tests: create/edit/archive happy paths + collision/YAML/404 errors + roundtrip stability + sync idempotency.
 
-## Stage 5 — URL importer
+## Docs & planning — Modular restructure ✅ (2026-05-29)
+
+Re-framed the project as a modular system (no app-code changes). Module map + decision records in
+`docs/architecture.md`; this roadmap recast around modules; base-corpus guide
+`docs/managing-recipes.md` + copyable `docs/recipe-template.md`; `GETTING-STARTED.md` for
+deployment/module toggling; `README.md` and `CLAUDE.md` updated. Decisions locked: keep both
+frontends on a shared REST API, monorepo, folder = organization-only.
+
+---
+
+# Modularization track
+
+These enabling stages make the system genuinely modular. They unblock the frontend and renderer
+modules below.
+
+## Stage M1 — Modular foundations (enabling)
+
+Make modules selectable without changing the default single-service behavior.
+
+- Split `pyproject.toml` `[project.dependencies]` into `[project.optional-dependencies]` groups:
+  `core` (pydantic, ruamel, python-ulid), `web` (fastapi, uvicorn, jinja2, python-multipart,
+  markdown-it-py), `api` (fastapi, uvicorn), `cli` (typer, rich), `ai` (LLM client, later).
+  A default extra (or `all`) reproduces today's full install.
+- `docker-compose.yml` `profiles:` so services are opt-in (e.g. `--profile web --profile api`).
+- Parameterize the Dockerfile entrypoint (env/arg) so one image can run as web / api / cli-worker /
+  ssg-build. Default `docker compose up` stays equivalent to today.
+- Update `GETTING-STARTED.md` to flip the toggling docs from "Planned" to "Available now".
+- Verify: existing single-service run is unchanged; a lean `pip install -e ".[core]"` imports
+  `app.core` without FastAPI present.
+
+## Stage M2 — Hierarchical corpus support
+
+Honor subdirectories as organization-only (slug stays the filename stem; URLs stable).
+
+- Discovery: `recipes_dir.glob("*.md")` → `recipes_dir.rglob("**/*.md")` in `app/db/sync.py` and
+  `app/cli.py` (and the `doctor` count). Exclude `_drafts/` and `images/` helper directories.
+- Global slug-uniqueness check across the whole tree (two files with the same stem in different
+  folders is an error, surfaced by `validate` and blocked at write time).
+- CRUD: writes preserve the file's existing subdirectory; new recipes may target a folder. Slug →
+  path lookup must search the tree, not assume `recipes_dir/{slug}.md`
+  (`app/web/crud.py`, `app/web/forms.py::slug_in_use`).
+- Update `docs/recipe-format.md` (the "`recipes/<slug>.md`" / "must equal the filename stem" lines)
+  and `docs/managing-recipes.md` to drop the flat-only caveat.
+- Tests: sync idempotency + parser roundtrip over a nested fixture layout; slug-collision error.
+
+## Stage M3 — REST/JSON API module
+
+A clean data contract both frontends consume.
+
+- `app/api/` routers reusing `app/db/queries.py` for reads (library search, facets, recipe detail).
+- Extract a shared write/service layer from `app/web/crud.py` + `app/web/forms.py` (form/markdown
+  build, `_write_and_sync`) so web and API share one write path — no duplicated file I/O or sync.
+- JSON schemas from the Pydantic models; OpenAPI served by FastAPI.
+- Decide auth posture (likely none / single-user / token) and document it.
+- Tests: read endpoints against `populated_db`; write endpoints against the `crud_client` pattern;
+  roundtrip + sync idempotency preserved.
+
+## Stage M4 — React SPA module
+
+Optional richer frontend on the API. HTMX/Jinja stays the default.
+
+- `web-spa/` Vite + React app in the monorepo; talks only to `app/api/`.
+- Build artifacts served statically by the app or shipped as a separate compose service/profile.
+- No data logic in the SPA — it consumes the API contract from Stage M3.
+
+## Stage M5 — Static Site Generator module
+
+The "simple renderer": corpus → static HTML, no DB, no running service.
+
+- `recipes build-site` (or a small `ssg/` package) renders every recipe + an index to static HTML,
+  reusing `app/core/` parsing and the `| md` filter. Reads files directly via `rglob`.
+- Output is hostable on any static host or opened via `file://`.
+- Tests: builds the fixture corpus; output contains every recipe; no DB touched.
+
+---
+
+# Feature modules
+
+## URL importer
+
+Interim today: the host-side `recipe-from-url` skill writes drafts to `recipes/_drafts/` via the
+canonical pipeline (see `README.md` / `GETTING-STARTED.md`). The in-app module below is still planned.
 
 - `httpx` fetcher with timeout + UA.
 - JSON-LD `Recipe` extractor (handles the majority of sites).
@@ -76,23 +169,23 @@ Separated the frozen test corpus from the dev-runtime scratch directory.
 - `recipes import-url <url>` CLI verb.
 - Fixture-based tests covering at least 2 site formats.
 
-## Stage 6 — Meal planner
+## Meal planner
 
 - `meal_plans` and `meal_plan_items` tables (SQLite only — meal plans are personal scheduling state, not corpus knowledge; documented in architecture.md).
 - `GET /plan` weekly grid (Mon–Sun × breakfast/lunch/dinner/snack).
-- Drag-drop assignment via Alpine.js.
+- Drag-drop assignment via Alpine.js (or the SPA, once available).
 - Optional shopping-list view aggregating ingredients across the week.
 
-## Stage 7 — AI assistance
+## AI assistance
 
 - `LLMProvider` protocol with implementations: `OllamaProvider` (default), `AnthropicProvider` (env-gated), `NullProvider` (tests).
-- Add `ollama` service to `docker-compose.yml`.
+- Add `ollama` service to `docker-compose.yml` (its own profile).
 - `Retriever` protocol; first implementation is `FTSRetriever`. Leaves room for a future `EmbeddingRetriever`.
 - `grounding.py` loads canonical Markdown for shortlist → compact context.
 - Assistants: discovery ("what can I cook with..."), constrained meal planning, similar-recipes.
 - Tests use `NullProvider` to lock the prompt-building behavior.
 
-## Stage 8 — Polish (nice-to-haves)
+## Polish (nice-to-haves)
 
 - Image handling and thumbnails.
 - Related-recipe recommendations from shared ingredients/tags.

@@ -2,9 +2,14 @@
 
 This file gives AI assistants the rules of the road for working in this repo.
 
+## Module architecture
+
+This project is a modular system on one core (a Markdown recipe corpus). See [`docs/architecture.md`](docs/architecture.md) for the module map, per-module status, and decision records, and [`TODO.md`](TODO.md) for the staged roadmap. Locked decisions: keep **both** the HTMX/Jinja UI and a (planned) React SPA on a single shared REST API; **monorepo** with module boundaries; recipe subdirectories are **organization-only**.
+
 ## Source-of-truth model (non-negotiable)
 
 - Markdown recipe files at `$RECIPES_DIR` are the **only** durable source of truth. In this repo `recipes/` is a gitignored dev scratch dir; the frozen test corpus lives in `tests/fixtures/recipes/`.
+- **Recipe directories are organization-only (planned).** Subdirectories may group recipes, but the folder is never identity: the `slug` is the filename stem and must be globally unique across the tree, and `/r/{slug}` URLs stay stable across moves. Never introduce path-based slugs. Note: discovery is currently **flat** (`glob("*.md")`); recursive `rglob` discovery is a planned stage in `TODO.md` — don't assume nested files are synced yet.
 - Every other artifact (SQLite DB, FTS5 index, web UI state) is derived and rebuildable.
 - All writes flow through ONE pipeline: `app.core.models.Recipe → app.core.serializer.serialize → write Markdown → app.db.sync.sync_one`. Never write to SQLite without first updating the Markdown file.
 - Sync is idempotent. Two consecutive `recipes sync` runs must produce zero changes. The test `tests/test_sync_idempotent.py` enforces this.
