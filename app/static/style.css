@@ -47,62 +47,77 @@
   --gap: 24px;
   --col-min: 244px;
   --maxw: 1320px;
+
+  /* dark palette raw values — defined once, referenced by both dark selectors below */
+  --_d-bg:           hsl(24 14% 9%);
+  --_d-bg-2:         hsl(24 14% 7%);
+  --_d-surface:      hsl(24 13% 13%);
+  --_d-surface-2:    hsl(24 12% 17%);
+  --_d-surface-3:    hsl(24 11% 22%);
+  --_d-text:         hsl(34 32% 92%);
+  --_d-text-2:       hsl(32 14% 72%);
+  --_d-text-3:       hsl(30 9% 52%);
+  --_d-border:       hsl(34 22% 86% / 0.13);
+  --_d-border-2:     hsl(34 22% 86% / 0.20);
+  --_d-accent:       hsl(338 62% 66%);
+  --_d-accent-press: hsl(338 62% 72%);
+  --_d-accent-soft:  hsl(336 32% 20%);
+  --_d-accent-on:    hsl(24 14% 9%);
+  --_d-brown:        hsl(22 58% 66%);
+  --_d-shadow-sm:    0 1px 2px hsl(0 0% 0% / 0.4);
+  --_d-shadow-md:    0 4px 12px hsl(0 0% 0% / 0.45);
+  --_d-shadow-lg:    0 16px 40px hsl(0 0% 0% / 0.55);
+  --_d-img-filter:   brightness(0.82) saturate(0.95);
+  --_d-img-veil:     0.18;
 }
 
-/* ---- dark palette (warm) ---- */
+/* ---- dark palette (warm) — explicit ---- */
 [data-theme="dark"] {
-  --bg:        hsl(24 14% 9%);
-  --bg-2:      hsl(24 14% 7%);
-  --surface:   hsl(24 13% 13%);
-  --surface-2: hsl(24 12% 17%);
-  --surface-3: hsl(24 11% 22%);
-
-  --text:   hsl(34 32% 92%);
-  --text-2: hsl(32 14% 72%);
-  --text-3: hsl(30 9% 52%);
-
-  --border:   hsl(34 22% 86% / 0.13);
-  --border-2: hsl(34 22% 86% / 0.20);
-
-  --accent:        hsl(338 62% 66%);
-  --accent-press:  hsl(338 62% 72%);
-  --accent-soft:   hsl(336 32% 20%);
-  --accent-on:     hsl(24 14% 9%);
-  --brown:         hsl(22 58% 66%);
-
-  --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.4);
-  --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.45);
-  --shadow-lg: 0 16px 40px hsl(0 0% 0% / 0.55);
-  --img-filter: brightness(0.82) saturate(0.95);
-  --img-veil: 0.18;
+  --bg:           var(--_d-bg);
+  --bg-2:         var(--_d-bg-2);
+  --surface:      var(--_d-surface);
+  --surface-2:    var(--_d-surface-2);
+  --surface-3:    var(--_d-surface-3);
+  --text:         var(--_d-text);
+  --text-2:       var(--_d-text-2);
+  --text-3:       var(--_d-text-3);
+  --border:       var(--_d-border);
+  --border-2:     var(--_d-border-2);
+  --accent:       var(--_d-accent);
+  --accent-press: var(--_d-accent-press);
+  --accent-soft:  var(--_d-accent-soft);
+  --accent-on:    var(--_d-accent-on);
+  --brown:        var(--_d-brown);
+  --shadow-sm:    var(--_d-shadow-sm);
+  --shadow-md:    var(--_d-shadow-md);
+  --shadow-lg:    var(--_d-shadow-lg);
+  --img-filter:   var(--_d-img-filter);
+  --img-veil:     var(--_d-img-veil);
 }
 
+/* ---- dark palette (warm) — auto follows system ---- */
 @media (prefers-color-scheme: dark) {
   [data-theme="auto"] {
-    --bg:        hsl(24 14% 9%);
-    --bg-2:      hsl(24 14% 7%);
-    --surface:   hsl(24 13% 13%);
-    --surface-2: hsl(24 12% 17%);
-    --surface-3: hsl(24 11% 22%);
-
-    --text:   hsl(34 32% 92%);
-    --text-2: hsl(32 14% 72%);
-    --text-3: hsl(30 9% 52%);
-
-    --border:   hsl(34 22% 86% / 0.13);
-    --border-2: hsl(34 22% 86% / 0.20);
-
-    --accent:        hsl(338 62% 66%);
-    --accent-press:  hsl(338 62% 72%);
-    --accent-soft:   hsl(336 32% 20%);
-    --accent-on:     hsl(24 14% 9%);
-    --brown:         hsl(22 58% 66%);
-
-    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.4);
-    --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.45);
-    --shadow-lg: 0 16px 40px hsl(0 0% 0% / 0.55);
-    --img-filter: brightness(0.82) saturate(0.95);
-    --img-veil: 0.18;
+    --bg:           var(--_d-bg);
+    --bg-2:         var(--_d-bg-2);
+    --surface:      var(--_d-surface);
+    --surface-2:    var(--_d-surface-2);
+    --surface-3:    var(--_d-surface-3);
+    --text:         var(--_d-text);
+    --text-2:       var(--_d-text-2);
+    --text-3:       var(--_d-text-3);
+    --border:       var(--_d-border);
+    --border-2:     var(--_d-border-2);
+    --accent:       var(--_d-accent);
+    --accent-press: var(--_d-accent-press);
+    --accent-soft:  var(--_d-accent-soft);
+    --accent-on:    var(--_d-accent-on);
+    --brown:        var(--_d-brown);
+    --shadow-sm:    var(--_d-shadow-sm);
+    --shadow-md:    var(--_d-shadow-md);
+    --shadow-lg:    var(--_d-shadow-lg);
+    --img-filter:   var(--_d-img-filter);
+    --img-veil:     var(--_d-img-veil);
   }
 }
 
