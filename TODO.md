@@ -78,6 +78,13 @@ Separated the frozen test corpus from the dev-runtime scratch directory.
 - `tests/conftest.py` — `crud_recipes_dir`, `crud_db`, `crud_client` fixtures (copy seed corpus to tmp dir).
 - `tests/test_web_crud.py` — 20 tests: create/edit/archive happy paths + collision/YAML/404 errors + roundtrip stability + sync idempotency.
 
+## CI/CD — Docker publish to GHCR ✅ (2026-05-29)
+
+`.github/workflows/docker-publish.yml` builds and pushes the image to
+`ghcr.io/chriskasza/recipe-app` on every push to `main`. Tags: `latest` + `sha-<commit>`.
+GHA layer cache (`type=gha`) warms subsequent builds. Image is private (inherited from repo).
+`GETTING-STARTED.md` and `README.md` updated to use the published image as the primary Docker path.
+
 ## Docs & planning — Modular restructure ✅ (2026-05-29)
 
 Re-framed the project as a modular system (no app-code changes). Module map + decision records in

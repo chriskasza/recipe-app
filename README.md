@@ -95,13 +95,16 @@ The SQLite mirror lives at `data/recipes.db` (gitignored). Wipe it any time — 
 
 ## Running with Docker
 
-See [`GETTING-STARTED.md`](GETTING-STARTED.md) for the full guide: running from this repo, pointing
-the image at your own recipe collection, wiring up the `recipe-from-url` skill, and the planned
-module-toggling via docker-compose profiles. The short version:
+The image is published to GHCR on every push to `main` — no repo clone required.
+See [`GETTING-STARTED.md`](GETTING-STARTED.md) for the full guide (authentication, your own recipes
+directory, wiring up the `recipe-from-url` skill, planned module toggling). Quick version:
 
 ```bash
-docker compose build
-docker compose up -d
+# authenticate once
+echo $(gh auth token) | docker login ghcr.io -u chriskasza --password-stdin
+
+# create ~/my-recipes/docker-compose.yml pointing at ghcr.io/chriskasza/recipe-app:latest, then:
+docker compose pull && docker compose up -d
 curl http://localhost:3141/healthz
 ```
 

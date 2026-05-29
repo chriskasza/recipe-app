@@ -12,7 +12,8 @@ software.
 ## Prerequisites
 
 - A directory of recipe files for `$RECIPES_DIR` (can start empty).
-- Either Python 3.12 (local dev) or Docker + Docker Compose.
+- **Docker path:** Docker + Docker Compose, and a GitHub account with access to the private image.
+- **Local dev path:** Python 3.12 and a clone of this repo.
 
 ## Quick start — local dev ✅
 
@@ -30,51 +31,63 @@ recipes doctor        # versions, recipe count, db count, last sync
 
 ## Quick start — Docker ✅
 
-### From this repo
+The image is published to GitHub Container Registry on every push to `main`. No need to clone this
+repo — authenticate once, then run from any machine.
+
+### 1. Authenticate to GHCR (once per machine)
+
+Using the GitHub CLI (easiest):
+```bash
+echo $(gh auth token) | docker login ghcr.io -u chriskasza --password-stdin
+```
+
+Or with a [Personal Access Token](https://github.com/settings/tokens) (needs `read:packages` scope):
+```bash
+echo YOUR_PAT | docker login ghcr.io -u chriskasza --password-stdin
+```
+
+### 2. Create your recipes project
+
+Create a directory anywhere — say `~/my-recipes/` — with this `docker-compose.yml`:
+
+```yaml
+services:
+  app:
+    image: ghcr.io/chriskasza/recipe-app:latest
+    ports:
+      - "3141:3141"
+    volumes:
+      - ./recipes:/app/recipes
+      - ./data:/app/data
+    environment:
+      RECIPES_DIR: /app/recipes
+      DATA_DIR: /app/data
+    restart: unless-stopped
+```
+
+### 3. Start it
+
+```bash
+docker compose pull      # fetch the latest image from GHCR
+docker compose up -d
+curl http://localhost:3141/healthz
+```
+
+Your recipes live in `./recipes/` and the derived SQLite DB in `./data/`, both bind-mounted from
+your project directory. To update to a newer image:
+```bash
+docker compose pull && docker compose up -d
+```
+
+### Building from source (contributors)
+
+If you're working on the app itself:
 
 ```bash
 docker compose build
 docker compose up -d
 curl http://localhost:3141/healthz
 ```
-
-`./recipes/` and `./data/` are bind-mounted from the host. Drop recipe files into `./recipes/`; the
-app picks them up on the next sync.
-
-### Using the image for your own recipe collection
-
-The image isn't published to a registry yet, so you build it locally and point a separate project
-at it. Both this `recipe-app` repo and your recipes project must live on the **same machine** — the
-freshly built image exists only in that machine's local Docker image store.
-
-1. **Build and tag** from this repo (re-run whenever you pull new `recipe-app` changes):
-   ```bash
-   docker build -t recipe-app:latest .
-   ```
-2. **Create your recipes project** anywhere on the same machine — say `~/my-recipes/` — with a
-   `docker-compose.yml` that *consumes* the local image instead of building it:
-   ```yaml
-   services:
-     app:
-       image: recipe-app:latest
-       ports:
-         - "3141:3141"
-       volumes:
-         - ./recipes:/app/recipes
-         - ./data:/app/data
-       environment:
-         RECIPES_DIR: /app/recipes
-         DATA_DIR: /app/data
-       restart: unless-stopped
-   ```
-3. **Start it** from that project directory:
-   ```bash
-   docker compose up -d
-   curl http://localhost:3141/healthz
-   ```
-   Your recipes live in `./recipes/` and the derived SQLite DB in `./data/`, both bind-mounted from
-   your project. After rebuilding the image (step 1), run `docker compose up -d` again to recreate
-   the container.
 
 ## Importing recipes with Claude Code (the URL importer, interim) 🟡
 
