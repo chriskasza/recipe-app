@@ -27,7 +27,11 @@ So this skill **always** writes through `scripts/build_draft.py`. That script ge
 
 ### Step 1: Fetch the page
 
-**Primary path — `curl`.** Fetch the raw HTML into the project `tmp/` dir (create it if missing):
+Fetch in **tiers**, escalating only when a tier fails. Each tier writes raw HTML to the project `tmp/` dir (create it if missing); after each, `Read` `tmp/recipe-page.html` (or `grep` for the `application/ld+json` block) to judge whether it's usable. "Usable" means real recipe HTML — not an HTTP error, not an empty/near-empty body, not a bot-challenge/CAPTCHA/"enable JavaScript" interstitial.
+
+Why not `WebFetch` anywhere in this ladder: it sends a fixed bot user agent you can't override (so bot-protected sites reject it), and it converts the page to markdown with a small model that routinely drops or mangles `<script type="application/ld+json">` blocks — exactly the structured data this skill wants. The tiers below all preserve raw HTML and present a browser identity.
+
+**Tier 1 — `curl`.** Cheapest. Presents a browser user agent over plain HTTP:
 
 ```bash
 curl -sL --compressed \
@@ -35,20 +39,37 @@ curl -sL --compressed \
   '<url>' -o tmp/recipe-page.html
 ```
 
-Curl is preferred over `WebFetch` here for two reasons:
+This clears UA-sniffing blocks. It does **not** clear bot walls that fingerprint the TLS/JA3 handshake (Cloudflare, PerimeterX, DataDome — e.g. food52.com), because curl's TLS signature doesn't look like a real browser's. For those you'll get a challenge/CAPTCHA page or a 403 → escalate.
 
-- **It dodges UA-based blocking.** `WebFetch` sends a fixed bot user agent with no way to override it (its only parameters are `url` and `prompt`), so bot-protected sites reject it. Curl lets us present a browser user agent.
-- **It preserves JSON-LD verbatim.** `WebFetch` converts the page to markdown with a small model, which routinely drops or mangles `<script type="application/ld+json">` blocks — exactly the structured data this skill wants. Raw HTML from curl keeps it intact.
+**Tier 2 — `curl_cffi` (TLS impersonation).** `curl_cffi` replays a real Chrome TLS/JA3 fingerprint, so it sails past the fingerprint-based walls that block plain curl. It's bundled in the app image, so run it through the container's Python. The container has no `tmp/` mount, so stream the body to stdout and let the host shell redirect it into `tmp/` (status line goes to stderr to keep the HTML file clean):
 
-Then `Read` `tmp/recipe-page.html` (or `grep` for the `application/ld+json` block) to inspect the content yourself.
+```bash
+docker compose exec -T app python -c '
+import sys
+from curl_cffi import requests
+r = requests.get(sys.argv[1], impersonate="chrome", timeout=30)
+sys.stderr.write(f"HTTP {r.status_code}\n")
+sys.stdout.write(r.text)
+' '<url>' > tmp/recipe-page.html
+```
 
-**Fallback path — `WebFetch`.** If curl returns an HTTP error, an empty/near-empty body, a bot-challenge/CAPTCHA page, or HTML with no usable recipe content (a JS-rendered page that hydrates client-side), fall back to `WebFetch` with a prompt that returns BOTH (a) a yes/no recipe verdict with reasoning AND (b) the raw recipe content:
+This assumes the `app` service is already up. If `docker compose exec` reports the container isn't running, **stop and tell the user** to start it (`docker compose up -d app`) — don't start it yourself. If this returns a challenge page or 403, the wall is checking something curl_cffi can't fake (a real session cookie, a solved JS challenge) → escalate to the human.
 
-> "Examine this page. Answer two things:
-> (1) Does it contain a single, complete meal recipe with both an ingredient list and step-by-step instructions? Reply 'RECIPE: yes' or 'RECIPE: no' and one short sentence of reasoning.
-> (2) If yes: extract the recipe data. Prefer the JSON-LD `<script type=\"application/ld+json\">` block verbatim if present. Otherwise dump the recipe title, ingredient list, instructions, prep/cook/total time, yield, author, hero image URL, description, and any tips / notes / substitutions / make-ahead text. Be literal — don't summarize."
+**Tier 3 — ask the human to grab it from a real browser.** When both automated tiers are blocked, the user's own browser is already past the wall (it solved the JS challenge / holds the session cookie). Ask them to open the URL, open DevTools (F12) → Console, and run this snippet, which copies every JSON-LD block to their clipboard:
 
-If both curl and WebFetch fail to yield usable content, **stop and tell the user** — name what happened (blocked, JS-only, paywalled) and link them back to the URL.
+```js
+copy([...document.querySelectorAll('script[type="application/ld+json"]')].map(s => s.textContent).join('\n---\n'))
+```
+
+Ask them to paste the result back into the chat. That JSON-LD is the same structured data Tier 1/2 would have yielded — proceed to Step 2 with it.
+
+If the clipboard comes back empty (some sites render the recipe only in HTML, no JSON-LD), ask them to run this fallback instead and paste the output — then extract fields from the visible text:
+
+```js
+copy(document.querySelector('main, article, [itemtype*="Recipe"]')?.innerText ?? document.body.innerText)
+```
+
+If all three tiers fail (the human reports a paywall stub, no recipe content, or declines), **stop and tell the user** — name what happened (blocked, JS-only, paywalled) and link them back to the URL. Don't fabricate a draft from an inadequate source.
 
 ### Step 1b: Verify the URL points at a single complete recipe
 
@@ -148,7 +169,7 @@ docker compose exec -T app python /app/.claude/skills/recipe-from-url/scripts/bu
 
 `-T` disables the TTY so the stdin redirect works. The payload stays on the host; the shell feeds it in. The script writes the draft to `/app/recipes/_drafts/` inside the container, which is the bind-mounted `./recipes/` volume, so the file appears on the host immediately. No `recipes sync` is needed — `_drafts/` is a review staging area, not part of the synced library.
 
-The `app` service must be up (`docker compose up -d app`) before running this. If `docker compose exec` reports the container isn't running, start it and retry.
+This assumes the `app` service is already up. If `docker compose exec` reports the container isn't running, **stop and tell the user** to start it (`docker compose up -d app`) — don't start it yourself.
 
 The script prints a JSON report to stdout. Read it:
 
