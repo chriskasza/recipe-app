@@ -15,13 +15,13 @@ Given a URL like `https://example.com/grandmas-cookies`, this skill:
 4. Downloads the hero image to `recipes/images/<slug>.<ext>` and wires it into the frontmatter `images`.
 5. Writes a draft to `recipes/_drafts/<slug>.md` via the project's canonical pipeline so the file gets a fresh ULID + UTC timestamps, validates clean, and is byte-stable on parse/serialize roundtrip.
 
-This is the manual bridge until `recipes import-url <url>` (TODO.md Stage 5) is built. The draft lives under `_drafts/` so the user can review and edit before promoting it to the canonical `recipes/` directory.
+This is the manual bridge until a full `recipes import-url <url>` fetcher (TODO.md Stage 5) is built. The draft lives under `_drafts/` so the user can review and edit before promoting it to the canonical `recipes/` directory.
 
-## Why a script, not direct file writing
+## Why the CLI, not direct file writing
 
 The project's source-of-truth rule (CLAUDE.md) is that all writes flow through the canonical pipeline: `Recipe model → serializer → Markdown`. Hand-rolled Markdown can drift from the parser's expectations and break `parse → serialize` byte-stability.
 
-So this skill **always** writes through `scripts/build_draft.py`. That script generates the ULID, normalizes the slug, stamps timestamps, builds the Markdown text in canonical field order, parses + validates it, roundtrips through the serializer to confirm stability, and only then writes the file. Do not use the `Write` tool to produce recipe files in this skill.
+So this skill **always** writes through the `recipes build-draft` command (implemented in `app/importer/`). It generates the ULID, normalizes the slug, stamps timestamps, builds the Markdown text in canonical field order, parses + validates it, roundtrips through the serializer to confirm stability, and only then writes the file. Do not use the `Write` tool to produce recipe files in this skill.
 
 ## Workflow
 
@@ -130,7 +130,7 @@ When in doubt, leave the numeric/unit fields off and keep only `name` + `origina
 
 ### Step 3: Build the JSON payload
 
-Write a single JSON object matching the script's payload schema (full reference below). Save it to the project's gitignored scratch dir, e.g. `tmp/recipe-payload.json` (relative to the repo root), and pass it to the script. Use the project `tmp/` rather than the system `/tmp` so reads/writes stay inside the workspace and don't trigger permission prompts. Create `tmp/` if it doesn't exist.
+Write a single JSON object matching the payload schema (full reference below). Save it to the project's gitignored scratch dir, e.g. `tmp/recipe-payload.json` (relative to the repo root), and pass it to the command. Use the project `tmp/` rather than the system `/tmp` so reads/writes stay inside the workspace and don't trigger permission prompts. Create `tmp/` if it doesn't exist.
 
 Skip any field you don't have data for — empty/null fields are dropped on output. **Don't fabricate**: if the page doesn't give a cuisine, don't guess one.
 
@@ -159,19 +159,19 @@ Handle the unhappy paths:
 - **No hero image on the page** → omit `images` entirely. Don't invent one.
 - **Download fails** (403/404, HTML error page, zero bytes) → don't reference a file that isn't there. Omit `images`, and instead record the URL in `body.notes` as `Hero image (download failed): <url>` so the user can grab it manually. Verify the download actually produced a non-empty image (`test -s recipes/images/<slug>.<ext>`) before adding the `images` entry.
 
-### Step 4: Run `scripts/build_draft.py`
+### Step 4: Run `recipes build-draft`
 
-Always run the script with the Docker image's Python — never the local `.venv`. The image is rebuilt after local changes, so its interpreter has the current `app.core.*` code and dependencies (`pydantic`, `ruamel.yaml`, `python-ulid`) installed exactly as deployed:
+Run the bundled CLI through the Docker image — never the local `.venv`. The image ships the current `app/` code and dependencies (`pydantic`, `ruamel.yaml`, `python-ulid`) installed exactly as deployed, so the user needs no local Python toolchain:
 
 ```bash
-docker compose exec -T app python /app/.claude/skills/recipe-from-url/scripts/build_draft.py < tmp/recipe-payload.json
+docker compose exec -T app recipes build-draft < tmp/recipe-payload.json
 ```
 
-`-T` disables the TTY so the stdin redirect works. The payload stays on the host; the shell feeds it in. The script writes the draft to `/app/recipes/_drafts/` inside the container, which is the bind-mounted `./recipes/` volume, so the file appears on the host immediately. No `recipes sync` is needed — `_drafts/` is a review staging area, not part of the synced library.
+`-T` disables the TTY so the stdin redirect works. The payload stays on the host; the shell feeds it in. The command reads the payload from stdin (pass a file path argument instead if you prefer), then writes the draft to `$RECIPES_DIR/_drafts/` inside the container, which is the bind-mounted `./recipes/` volume, so the file appears on the host immediately. No `recipes sync` is needed — `_drafts/` is a review staging area, not part of the synced library.
 
 This assumes the `app` service is already up. If `docker compose exec` reports the container isn't running, **stop and tell the user** to start it (`docker compose up -d app`) — don't start it yourself.
 
-The script prints a JSON report to stdout. Read it:
+The command prints a JSON report to stdout. Read it:
 
 - `{"status": "ok", "path": "...", "id": "...", "warnings": [...]}` → success. The `warnings` list contains any non-blocking validation issues (unknown vocab, time-math mismatch, etc.).
 - `{"status": "error", "stage": "...", ...}` → failure. Stages are `json` (bad input), `build` (missing required field), `parse` (malformed YAML/body — usually a quoting bug in the payload), `validate` (schema error like an invalid slug or missing ingredient `original`), or `write` (draft already exists at that slug).
@@ -181,13 +181,13 @@ The script prints a JSON report to stdout. Read it:
 Tell them:
 
 - Where the draft landed: `recipes/_drafts/<slug>.md`.
-- Any warnings the script returned, in plain language ("flagged the unit 'wedge' as unknown — you may want to change it to 'whole' or leave as-is").
+- Any warnings the command returned, in plain language ("flagged the unit 'wedge' as unknown — you may want to change it to 'whole' or leave as-is").
 - The hero image: if downloaded, where it landed (`recipes/images/<slug>.<ext>`) and that it's already wired into the frontmatter `images`; if the download failed, that the URL is parked in `## Notes` for them to fetch manually.
 - A reminder that the file is a draft — they should look it over and move it into `recipes/` when satisfied.
 
 ## JSON payload schema
 
-The script accepts one JSON object. Only `title` and per-ingredient `name`+`original` are required.
+The command accepts one JSON object. Only `title` and per-ingredient `name`+`original` are required.
 
 ```json
 {
@@ -235,19 +235,19 @@ The image file is **not** committed (`recipes/` is gitignored dev scratch); it l
 
 ## Edge cases
 
-- **Multiple recipes on one page** (e.g. "3 variations on miso eggplant"): the schema is one file per recipe. Ask the user which variation to import, or whether to make multiple drafts (one URL → multiple script invocations with distinct slugs).
+- **Multiple recipes on one page** (e.g. "3 variations on miso eggplant"): the schema is one file per recipe. Ask the user which variation to import, or whether to make multiple drafts (one URL → multiple `build-draft` invocations with distinct slugs).
 - **Recipe roundup / list article** (e.g. "25 best chocolate chip cookies"): refuse. Not a single recipe. Suggest the user pick one specific link from the roundup.
 - **Recipe video / TikTok-style page** with no ingredient list or instructions in the HTML: refuse. Tell the user the page doesn't expose structured recipe content and they'd need to transcribe manually.
 - **Paywall stub**: refuse with a note about the paywall. Don't fabricate the missing steps.
-- **Existing draft with same slug**: the script errors with `stage: "write"`. Ask the user: overwrite (they delete the existing draft first), use a different slug (re-run with `"slug": "<custom>"` in the payload), or skip.
+- **Existing draft with same slug**: the command errors with `stage: "write"`. Ask the user: overwrite (they delete the existing draft first), use a different slug (re-run with `"slug": "<custom>"` in the payload), or skip.
 - **Ambiguous quantities** ("a handful", "a glug", "to taste"): leave `qty` and `unit` empty — keep only `name` + `original`. The original text is what gets shown in the printed list anyway.
 - **Don't invent times**: if the page only gives a total time, populate only `total_minutes`. The validator's time-math warning only triggers when all three of prep/cook/total are set.
 - **Don't invent nutrition**: nutrition values often come from the recipe author's calculator. If the page doesn't expose them, leave the `nutrition` field out entirely.
-- **`created_at` / `updated_at`**: always now (UTC, set by the script). The source page's publication date belongs in `source.attribution`, not in these timestamps.
+- **`created_at` / `updated_at`**: always now (UTC, set by the command). The source page's publication date belongs in `source.attribution`, not in these timestamps.
 
 ## Validation outcomes
 
-The script distinguishes errors (block writes) from warnings (surface but allow). Common signals you'll see:
+The command distinguishes errors (block writes) from warnings (surface but allow). Common signals you'll see:
 
 - `[warning] ingredient.unit.unknown: unknown unit 'X'` — the unit isn't in the controlled vocab. Either remap to a known unit or accept the warning if the user has a recurring custom unit.
 - `[warning] dietary.unknown: unknown dietary flag 'X'` — same idea.

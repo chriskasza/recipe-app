@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import sys
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -13,6 +15,7 @@ from app import __version__
 from app.config import load_settings
 from app.core.validator import IssueLevel
 from app.db import queries, sync
+from app.importer import build_draft
 
 app = typer.Typer(help="Recipe app operator CLI.", no_args_is_help=True)
 console = Console()
@@ -147,6 +150,45 @@ def show(slug: str) -> None:
     for ing in ingredients:
         mark = " (optional)" if ing.optional else ""
         console.print(f"  • {ing.original_text}{mark}")
+
+
+@app.command("build-draft")
+def build_draft_command(
+    payload: Annotated[
+        Path | None,
+        typer.Argument(help="JSON payload file. Reads stdin when omitted."),
+    ] = None,
+) -> None:
+    """Build a validated recipe draft from an extracted JSON payload.
+
+    Writes the draft to ``$RECIPES_DIR/_drafts/<slug>.md`` via the canonical pipeline
+    and prints a JSON report to stdout. Exits nonzero on any error. This is the write
+    path the ``recipe-from-url`` skill drives.
+    """
+    raw = payload.read_text(encoding="utf-8") if payload is not None else sys.stdin.read()
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(json.dumps({"status": "error", "stage": "json", "message": str(e)}, indent=2))
+        raise typer.Exit(code=1) from None
+
+    if not isinstance(data, dict):
+        print(
+            json.dumps(
+                {"status": "error", "stage": "json", "message": "payload must be a JSON object"},
+                indent=2,
+            )
+        )
+        raise typer.Exit(code=1)
+
+    settings = load_settings()
+    report = build_draft(
+        data,
+        settings.recipes_dir / "_drafts",
+        rel_to=settings.recipes_dir.parent,
+    )
+    print(json.dumps(report.to_dict(), indent=2))
+    raise typer.Exit(code=0 if report.status == "ok" else 1)
 
 
 @app.command("run-dev")

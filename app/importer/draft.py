@@ -1,38 +1,29 @@
-"""Build a recipe draft from a JSON payload, using the project's canonical pipeline.
+"""Build a recipe draft from an extracted payload, using the canonical pipeline.
 
-Reads a JSON object describing one recipe (from a file path argument, or stdin if no
-argument is given), then:
+Given a JSON-style payload describing one recipe, this module:
 
 1. Generates a fresh ULID, normalizes the slug, and stamps created_at/updated_at (UTC).
 2. Renders Markdown text in the canonical field order and block-style ingredients.
 3. Parses + validates via ``app.core.parser.parse_text`` — schema errors abort the write.
 4. Roundtrips through ``app.core.serializer.serialize`` to confirm byte-stability.
-5. Writes the result to ``recipes/_drafts/<slug>.md`` under the project root.
-6. Prints a JSON report on stdout: ``{"status": "ok" | "error", ...}``.
+5. Writes the result to ``<drafts_dir>/<slug>.md``.
 
-This script is the canonical write path for the recipe-from-url skill. Skill prose
-should NOT use the Write tool to produce recipe files directly — everything must flow
-through here so the source-of-truth model in CLAUDE.md is preserved.
+This is the canonical write path for the ``recipe-from-url`` skill (driven via the
+``recipes build-draft`` CLI command). Everything flows through here so the
+source-of-truth model in CLAUDE.md is preserved — no hand-rolled Markdown writes.
 """
 
 from __future__ import annotations
 
-import json
-import os
-import sys
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from app.core.ids import new_ulid, normalize_slug  # noqa: E402
-from app.core.parser import ParseError, parse_text  # noqa: E402
-from app.core.serializer import serialize  # noqa: E402
-from app.core.validator import IssueLevel  # noqa: E402
-
-_recipes_base = Path(os.environ["RECIPES_DIR"]) if "RECIPES_DIR" in os.environ else PROJECT_ROOT / "recipes"
-DRAFTS_DIR = _recipes_base / "_drafts"
+from app.core.ids import new_ulid, normalize_slug
+from app.core.parser import ParseError, parse_text
+from app.core.serializer import serialize
+from app.core.validator import IssueLevel
 
 _YAML_SPECIAL_PREFIXES = ("-", "?", ":", "[", "{", "!", "&", "*", "|", ">", "'", '"', "%", "@", "`", "#", " ")
 
@@ -65,8 +56,11 @@ def _flow_list(items: list[str]) -> str:
     return "[" + ", ".join(items) + "]"
 
 
-def build_markdown(data: dict) -> tuple[str, str]:
-    """Return ``(markdown_text, slug)`` for the given payload."""
+def build_markdown(data: dict[str, Any]) -> tuple[str, str]:
+    """Return ``(markdown_text, slug)`` for the given payload.
+
+    Raises ``ValueError`` on missing required fields (title, ingredient name/original).
+    """
     title = data.get("title")
     if not title or not str(title).strip():
         raise ValueError("payload missing required field 'title'")
@@ -82,22 +76,22 @@ def build_markdown(data: dict) -> tuple[str, str]:
     out.append(f"slug: {slug}")
     out.append(f"title: {_quote(title)}")
 
-    if (summary := data.get("summary")):
+    if summary := data.get("summary"):
         out.append(f"summary: {_quote(summary)}")
-    if (cuisine := data.get("cuisine")):
+    if cuisine := data.get("cuisine"):
         out.append(f"cuisine: {_quote(cuisine)}")
-    if (mt := data.get("meal_type")):
+    if mt := data.get("meal_type"):
         out.append(f"meal_type: {_flow_list([str(x) for x in mt])}")
-    if (tags := data.get("tags")):
+    if tags := data.get("tags"):
         out.append(f"tags: {_flow_list([str(x) for x in tags])}")
-    if (dietary := data.get("dietary")):
+    if dietary := data.get("dietary"):
         out.append(f"dietary: {_flow_list([str(x) for x in dietary])}")
 
     for key in ("prep_minutes", "cook_minutes", "total_minutes", "servings"):
         if data.get(key) is not None:
             out.append(f"{key}: {int(data[key])}")
 
-    if (yn := data.get("yield_note")):
+    if yn := data.get("yield_note"):
         out.append(f"yield_note: {_quote(yn)}")
 
     if (source := data.get("source")) and (source.get("url") or source.get("attribution")):
@@ -107,10 +101,10 @@ def build_markdown(data: dict) -> tuple[str, str]:
         if source.get("attribution"):
             out.append(f"  attribution: {_quote(source['attribution'])}")
 
-    if (eq := data.get("equipment")):
+    if eq := data.get("equipment"):
         out.append(f"equipment: {_flow_list([str(x) for x in eq])}")
 
-    if (ings := data.get("ingredients")):
+    if ings := data.get("ingredients"):
         out.append("ingredients:")
         for ing in ings:
             name = ing.get("name")
@@ -131,14 +125,14 @@ def build_markdown(data: dict) -> tuple[str, str]:
                 out.append("    optional: true")
             out.append(f"    original: {_quote(original)}")
 
-    if (nut := data.get("nutrition")):
+    if nut := data.get("nutrition"):
         out.append("nutrition:")
         for k, v in nut.items():
             if v is None:
                 continue
             out.append(f"  {k}: {v}")
 
-    if (imgs := data.get("images")):
+    if imgs := data.get("images"):
         out.append("images:")
         for img in imgs:
             if not img.get("path"):
@@ -175,80 +169,93 @@ def build_markdown(data: dict) -> tuple[str, str]:
     return text, slug
 
 
-def _report(payload: dict, *, exit_code: int = 0) -> None:
-    print(json.dumps(payload, indent=2))
-    sys.exit(exit_code)
+@dataclass
+class DraftReport:
+    """Outcome of a draft build. ``status`` is ``"ok"`` or ``"error"``.
+
+    On error, ``stage`` is one of ``json`` (caller's concern), ``build`` (missing
+    required field), ``parse`` (malformed YAML/body), ``validate`` (schema error),
+    or ``write`` (draft already exists). Mirrors the report shape the skill reads.
+    """
+
+    status: str
+    stage: str | None = None
+    path: str | None = None
+    slug: str | None = None
+    id: str | None = None
+    message: str | None = None
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    roundtrip_byte_stable: bool | None = None
+    draft: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-ready dict, dropping unset (None) and empty-list fields."""
+        result: dict[str, Any] = {"status": self.status}
+        for key in ("stage", "path", "slug", "id", "message", "roundtrip_byte_stable"):
+            value = getattr(self, key)
+            if value is not None:
+                result[key] = value
+        for key in ("errors", "warnings"):
+            value = getattr(self, key)
+            if value:
+                result[key] = value
+        if self.draft is not None:
+            result["draft"] = self.draft
+        return result
 
 
-def main() -> None:
-    raw = Path(sys.argv[1]).read_text(encoding="utf-8") if len(sys.argv) > 1 else sys.stdin.read()
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as e:
-        _report({"status": "error", "stage": "json", "message": str(e)}, exit_code=1)
+def build_draft(data: dict[str, Any], drafts_dir: Path, *, rel_to: Path | None = None) -> DraftReport:
+    """Build, validate, and write a draft to ``drafts_dir``; return a structured report.
+
+    ``rel_to`` controls how the written path is reported: if the draft lives under it,
+    the report carries the relative path (e.g. ``recipes/_drafts/foo.md``); otherwise
+    the absolute path. The file is never written when ``status == "error"``.
+    """
+
+    def _rel(p: Path) -> str:
+        if rel_to is not None:
+            try:
+                return str(p.relative_to(rel_to))
+            except ValueError:
+                pass
+        return str(p)
 
     try:
         text, slug = build_markdown(data)
     except (ValueError, KeyError) as e:
-        _report({"status": "error", "stage": "build", "message": str(e)}, exit_code=1)
+        return DraftReport(status="error", stage="build", message=str(e))
 
     try:
         doc, issues = parse_text(text)
     except ParseError as e:
-        _report(
-            {"status": "error", "stage": "parse", "message": str(e), "draft": text},
-            exit_code=1,
-        )
+        return DraftReport(status="error", stage="parse", message=str(e), draft=text)
 
     errors = [str(i) for i in issues if i.level is IssueLevel.ERROR]
     warnings = [str(i) for i in issues if i.level is IssueLevel.WARNING]
     if errors:
-        _report(
-            {
-                "status": "error",
-                "stage": "validate",
-                "errors": errors,
-                "warnings": warnings,
-                "draft": text,
-            },
-            exit_code=1,
-        )
+        return DraftReport(status="error", stage="validate", errors=errors, warnings=warnings, draft=text)
 
     canonical = serialize(doc)
     roundtrip_clean = canonical == text
 
-    out_path = DRAFTS_DIR / f"{slug}.md"
-    def _rel(p: Path) -> str:
-        try:
-            return str(p.relative_to(PROJECT_ROOT))
-        except ValueError:
-            return str(p)
-
+    out_path = drafts_dir / f"{slug}.md"
     if out_path.exists():
-        _report(
-            {
-                "status": "error",
-                "stage": "write",
-                "message": f"draft already exists: {_rel(out_path)}",
-                "warnings": warnings,
-            },
-            exit_code=1,
+        return DraftReport(
+            status="error",
+            stage="write",
+            message=f"draft already exists: {_rel(out_path)}",
+            warnings=warnings,
         )
 
-    DRAFTS_DIR.mkdir(parents=True, exist_ok=True)
+    drafts_dir.mkdir(parents=True, exist_ok=True)
     out_path.write_text(canonical, encoding="utf-8")
 
-    _report(
-        {
-            "status": "ok",
-            "path": _rel(out_path),
-            "slug": slug,
-            "id": doc.recipe.id,
-            "roundtrip_byte_stable": roundtrip_clean,
-            "warnings": warnings,
-        }
+    return DraftReport(
+        status="ok",
+        path=_rel(out_path),
+        slug=slug,
+        id=doc.recipe.id,
+        roundtrip_byte_stable=roundtrip_clean,
+        warnings=warnings,
     )
-
-
-if __name__ == "__main__":
-    main()

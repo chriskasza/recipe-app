@@ -190,15 +190,19 @@ The "simple renderer": corpus → static HTML, no DB, no running service.
 
 ## URL importer
 
-Interim today: the host-side `recipe-from-url` skill writes drafts to `recipes/_drafts/` via the
-canonical pipeline (see `README.md` / `GETTING-STARTED.md`). The in-app module below is still planned.
+Interim today: the `recipe-from-url` skill extracts a recipe payload and writes a draft to
+`recipes/_drafts/` via the `recipes build-draft` CLI command (see `README.md` /
+`GETTING-STARTED.md`). The draft builder now lives in `app/importer/draft.py` (`build_draft`),
+so it ships in the Docker image and needs no host Python toolchain. The fetch/extract front
+end below is still planned.
 
+- ✅ `app/importer/draft.py` — payload → validated draft via the canonical pipeline; `recipes build-draft` CLI verb (reads JSON from stdin or a file). Tests: `tests/test_importer_draft.py`.
 - `httpx` fetcher with timeout + UA.
 - JSON-LD `Recipe` extractor (handles the majority of sites).
 - HTML heuristic fallback.
 - `app/importer/pipeline.py` returns a draft `Recipe` model; UI presents an editable form before saving.
 - Drafts written to `recipes/_drafts/`; only "Save" moves them into the canonical corpus.
-- `recipes import-url <url>` CLI verb.
+- `recipes import-url <url>` CLI verb (fetch + extract + `build_draft` in one shot).
 - Fixture-based tests covering at least 2 site formats.
 
 ## Meal planner

@@ -47,7 +47,7 @@ swapped without touching the recipes.
 | **Dynamic app** — REST/JSON API | Shared data contract for frontends | 🔜 planned |
 | **Dynamic app** — React SPA | Optional richer frontend on the API | 🔜 planned |
 | **Static Site Generator** | Renders the corpus → static HTML, no DB | 🔜 planned |
-| **URL importer** | URL → draft recipe | 🟡 interim: `recipe-from-url` skill (host-side); in-app importer planned |
+| **URL importer** | URL → draft recipe | 🟡 interim: `recipe-from-url` skill extracts the payload; draft builder is in-app (`app/importer/draft.py`, `recipes build-draft`). Fetch/extract front end planned |
 | **Meal planner** | Weekly scheduling, shopping lists | 🔜 planned |
 | **AI assistance** | LLM provider + retrieval + grounding | 🔜 planned |
 
@@ -100,7 +100,7 @@ through the canonical pipeline — and the mirror is always rebuildable from the
 | `app/api/` (planned) | REST/JSON contract | Reuses `app/db/queries.py` for reads and a shared write/service layer (extracted from `app/web/`) for writes. The data contract both frontends consume. |
 | `ssg/` (planned) | Static HTML from the corpus | The "simple renderer." Reads files directly; no DB. |
 | `web-spa/` (planned) | React SPA | Optional frontend; talks only to `app/api/`. |
-| `app/importer/` (planned) | URL → draft Recipe | Returns a model; never writes directly. Interim: host-side `recipe-from-url` skill. |
+| `app/importer/` | URL → draft Recipe | `draft.py` builds + validates + writes a draft from an extracted payload via the canonical pipeline (`build_draft`, exposed as `recipes build-draft`). The `recipe-from-url` skill drives it. Fetch/extract front end planned. |
 | `app/ai/` (planned) | LLM provider, retrieval, grounding | Retrieves from DB; grounds answers on canonical Markdown. |
 | `app/cli.py` | Operator commands | `validate`, `sync`, `rebuild-index`, `search`, `show`, `doctor`. |
 
