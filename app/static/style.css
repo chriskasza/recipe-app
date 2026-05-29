@@ -1,10 +1,7 @@
 /* ============================================================
-   Skillet — Recipe app
-   Adapted from the ui-prototype design system (app.css + detail.css)
-   for the real HTMX/Jinja app. Young Serif headings · Outfit UI ·
-   warm stone/cream · rose accent · light/dark/auto theming.
-   Pico.css has been dropped; the form/button basics it used to
-   provide live in the FORMS section below.
+   Recipe app
+   Young Serif headings · Outfit UI · warm stone/cream ·
+   rose accent · light/dark/auto theming.
    ============================================================ */
 
 :root {
