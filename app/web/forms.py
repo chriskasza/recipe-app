@@ -111,6 +111,18 @@ def _parse_int(value: str) -> int | None:
         return None
 
 
+def _validate_url(value: str, field: str) -> ValidationIssue | None:
+    """Reject URLs whose scheme is not http or https."""
+    if value and not value.startswith(("https://", "http://")):
+        return ValidationIssue(
+            IssueLevel.ERROR,
+            f"{field}.invalid_scheme",
+            "URL must start with https:// or http://",
+            field,
+        )
+    return None
+
+
 def _split_csv(value: str) -> list[str]:
     return [v.strip() for v in value.split(",") if v.strip()]
 
@@ -162,6 +174,11 @@ def build_markdown(
                     "ingredients",
                 )
             )
+
+    for url_field, url_value in (("image_url", form.image_url), ("source_url", form.source_url)):
+        issue = _validate_url(url_value, url_field)
+        if issue:
+            pre_errors.append(issue)
 
     if pre_errors:
         return "", pre_errors

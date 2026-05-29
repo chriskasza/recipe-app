@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 VALID_INGREDIENTS = """\
@@ -408,6 +409,24 @@ def test_edit_preserves_then_clears_image(
     # An edit with the field blank removes the image.
     crud_client.post(f"/r/{slug}/edit", data=_new_form(title="Keeper"), follow_redirects=False)
     assert "images:" not in (crud_recipes_dir / f"{slug}.md").read_text()
+
+
+@pytest.mark.parametrize("bad_url", ["javascript:alert(1)", "data:text/html,<h1>hi</h1>", "//evil.com/x.jpg"])
+def test_new_post_rejects_invalid_image_url_scheme(crud_client: TestClient, bad_url: str) -> None:
+    data = _new_form(title="Bad Image")
+    data["image_url"] = bad_url
+    resp = crud_client.post("/new", data=data, follow_redirects=False)
+    assert resp.status_code == 200
+    assert "URL must start with" in resp.text
+
+
+@pytest.mark.parametrize("bad_url", ["javascript:alert(1)", "data:text/html,<h1>hi</h1>", "//evil.com/"])
+def test_new_post_rejects_invalid_source_url_scheme(crud_client: TestClient, bad_url: str) -> None:
+    data = _new_form(title="Bad Source")
+    data["source_url"] = bad_url
+    resp = crud_client.post("/new", data=data, follow_redirects=False)
+    assert resp.status_code == 200
+    assert "URL must start with" in resp.text
 
 
 # ---------------------------------------------------------------------------
