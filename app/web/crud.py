@@ -392,10 +392,15 @@ def _safe_next(next_url: str, fallback: str) -> str:
     return fallback
 
 
+_BOOL_FIELDS: frozenset[str] = frozenset({"archived", "favorite"})
+
+
 def _flip_bool_field(
     slug: str, *, field: str, value: bool, recipes_dir: Path, db_path: Path
 ) -> None:
     """Toggle a boolean frontmatter flag by mutating raw_yaml and re-serializing."""
+    if field not in _BOOL_FIELDS:
+        raise ValueError(f"field {field!r} is not an allowed boolean frontmatter key")
     path = recipes_dir / f"{slug}.md"
     if not path.is_file():
         raise HTTPException(status_code=404, detail=f"No recipe file for slug {slug!r}")
