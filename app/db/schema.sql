@@ -18,6 +18,7 @@ CREATE TABLE recipes (
   source_url TEXT,
   source_attribution TEXT,
   archived INTEGER NOT NULL DEFAULT 0,
+  favorite INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   file_path TEXT NOT NULL,

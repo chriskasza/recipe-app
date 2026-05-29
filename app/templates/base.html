@@ -1,28 +1,39 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="auto" data-accent="rose">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Recipe app{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='favicon.svg') }}">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Young+Serif&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
   <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
   <script src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
 </head>
 <body>
-  <header class="container no-print">
-    <nav>
-      <ul>
-        <li><strong><a href="/">Recipes</a></strong></li>
-      </ul>
-      <ul>
-        <li><a href="/new">New recipe</a></li>
-      </ul>
-    </nav>
+  <header class="site-header no-print">
+    <a class="brand" href="/"><span>plated</span><span class="dot">.</span></a>
+    <form class="search" role="search" action="/" method="get">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+      <input type="search" name="q" value="{{ selected.q if selected is defined else '' }}"
+             placeholder="Search recipes, ingredients or tags…" autocomplete="off">
+    </form>
+    <div class="header-actions">
+      <a class="navlink{% if selected is defined and selected.favorites_only %} active{% endif %}" href="/?favorite=1">My recipes</a>
+      <a class="btn btn-primary" href="/new">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span class="txt">Add recipe</span>
+      </a>
+      {# TODO: replace with user initial once auth is added #}
+      <div class="avatar">K</div>
+    </div>
   </header>
+  {% block body %}
   <main class="container">
     {% block content %}{% endblock %}
   </main>
+  {% endblock %}
 </body>
 </html>

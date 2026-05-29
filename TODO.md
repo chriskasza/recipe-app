@@ -93,6 +93,31 @@ Re-framed the project as a modular system (no app-code changes). Module map + de
 deployment/module toggling; `README.md` and `CLAUDE.md` updated. Decisions locked: keep both
 frontends on a shared REST API, monorepo, folder = organization-only.
 
+## UI restyle — "Skillet" wireframes (HTMX/Jinja) ✅ (2026-05-29)
+
+Re-skinned the HTMX/Jinja UI to the `ui-prototype/` wireframes (Young Serif + Outfit, warm
+stone/rose palette, light/dark/auto), and added the data the design needed:
+
+- `favorite` boolean: optional Markdown frontmatter field synced to a `recipes.favorite` column
+  (mirrors `archived`). Full pipeline — `models.py`, `schema.sql`, `sync.py`, `queries.py`
+  (`RecipeRow`/`LibraryRow` + `favorites_only` filter), `forms.py`/`crud.py`
+  (`POST /r/{slug}/favorite|unfavorite` via shared `_flip_bool_field`, `?next=` same-origin redirect),
+  `library.py` (`?favorite=1`). "My recipes" nav links to the favorites view.
+- Static hero/thumbnail images from frontmatter `images[0].path`, served by `GET /media/{path}`
+  (traversal-guarded, under `RECIPES_DIR`); gradient/glyph fallback when absent or broken.
+- Dual min–max total-time filter (`min_minutes` added to `_build_filters` + facets + `library.py`).
+- Ratings/reviews dropped (no data; out of scope). Excluded the prototype's `image-slot.js` drag-drop
+  and React tweaks panel (depend on the Claude artifact host bridge).
+- Templates reworked: `base.html` (header, fonts, theme attrs, Pico dropped), `index.html`
+  (`.page` grid + sort), `_facets.html` (collapsible sidebar, time range), `_results.html` (cards +
+  favorite heart, no ratings), `recipe.html` (hero, stats, Save, prep callout). `app/static/style.css`
+  rewritten from the prototype + form basics. OOB-facets contract preserved.
+- Tests: favorite toggle + `?next=` safety (`test_web_crud.py`), `min_minutes`/`favorites_only`
+  (`test_db_queries_library.py`). 78 tests pass; `mypy --strict` + `ruff` clean.
+
+React SPA still deferred — needs Stage M3 (REST API) then M4 (SPA scaffold); the same wireframes
+port directly once those exist.
+
 ---
 
 # Modularization track

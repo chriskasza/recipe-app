@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
@@ -95,6 +95,8 @@ def _prefill_form(doc: Any) -> FormData:
         equipment=", ".join(r.equipment),
         source_url=(src.url or "") if src else "",
         source_attribution=(src.attribution or "") if src else "",
+        image_url=r.images[0].path if r.images else "",
+        favorite=r.favorite,
         ingredients_yaml=_ingredients_to_yaml(doc),
         body=doc.raw_body or "",
     )
@@ -358,12 +360,53 @@ def _flip_archived(
     slug: str, *, archived: bool, recipes_dir: Path, db_path: Path
 ) -> None:
     """Toggle the archived flag by mutating raw_yaml and re-serializing."""
+    _flip_bool_field(slug, field="archived", value=archived, recipes_dir=recipes_dir, db_path=db_path)
+
+
+@router.post("/r/{slug}/favorite")
+def favorite_recipe(
+    slug: str,
+    recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
+    db_path: Annotated[Path, Depends(get_db_path)],
+    next: Annotated[str, Query()] = "",
+) -> RedirectResponse:
+    _flip_bool_field(slug, field="favorite", value=True, recipes_dir=recipes_dir, db_path=db_path)
+    return RedirectResponse(_safe_next(next, f"/r/{slug}"), status_code=303)
+
+
+@router.post("/r/{slug}/unfavorite")
+def unfavorite_recipe(
+    slug: str,
+    recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
+    db_path: Annotated[Path, Depends(get_db_path)],
+    next: Annotated[str, Query()] = "",
+) -> RedirectResponse:
+    _flip_bool_field(slug, field="favorite", value=False, recipes_dir=recipes_dir, db_path=db_path)
+    return RedirectResponse(_safe_next(next, f"/r/{slug}"), status_code=303)
+
+
+def _safe_next(next_url: str, fallback: str) -> str:
+    """Only honor same-origin relative redirects (must start with a single '/')."""
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return next_url
+    return fallback
+
+
+_BOOL_FIELDS: frozenset[str] = frozenset({"archived", "favorite"})
+
+
+def _flip_bool_field(
+    slug: str, *, field: str, value: bool, recipes_dir: Path, db_path: Path
+) -> None:
+    """Toggle a boolean frontmatter flag by mutating raw_yaml and re-serializing."""
+    if field not in _BOOL_FIELDS:
+        raise ValueError(f"field {field!r} is not an allowed boolean frontmatter key")
     path = recipes_dir / f"{slug}.md"
     if not path.is_file():
         raise HTTPException(status_code=404, detail=f"No recipe file for slug {slug!r}")
 
     doc, _ = parse_file(path)
-    doc.raw_yaml["archived"] = archived
+    doc.raw_yaml[field] = value
     doc.raw_yaml["updated_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     text = serialize(doc)

@@ -12,7 +12,7 @@ def test_library_page_renders_full_html(client: TestClient) -> None:
     assert resp.status_code == 200
     body = resp.text
     assert "<html" in body
-    assert "Library" in body
+    assert "All recipes" in body
     assert 'id="filters"' in body
     # At least one recipe card present.
     assert "/r/miso-glazed-eggplant" in body
@@ -49,6 +49,25 @@ def test_search_filter_by_max_minutes(client: TestClient) -> None:
     assert "/r/overnight-oats" in body
     assert "/r/classic-french-omelette" in body
     assert "/r/lemon-garlic-roast-chicken" not in body
+
+
+def test_max_minutes_at_ceiling_is_unbounded(client: TestClient) -> None:
+    # 180 is the slider ceiling → treated as "no upper bound", so a recipe with
+    # no total_minutes (fire-cider) is still shown.
+    resp = client.get("/search", params={"max_minutes": 180})
+    assert "/r/fire-cider" in resp.text
+    # A real upper bound still excludes the untimed recipe.
+    resp2 = client.get("/search", params={"max_minutes": 40})
+    assert "/r/fire-cider" not in resp2.text
+
+
+def test_min_minutes_at_floor_is_unbounded(client: TestClient) -> None:
+    # 0 is the slider floor → no lower bound, so the untimed recipe is shown.
+    resp = client.get("/search", params={"min_minutes": 0})
+    assert "/r/fire-cider" in resp.text
+    # A real lower bound excludes the untimed recipe.
+    resp2 = client.get("/search", params={"min_minutes": 20})
+    assert "/r/fire-cider" not in resp2.text
 
 
 def test_search_sort_title_orders_alphabetically(client: TestClient) -> None:

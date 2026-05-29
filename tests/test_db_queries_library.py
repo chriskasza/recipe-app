@@ -51,6 +51,32 @@ def test_search_library_max_minutes_excludes_nulls(populated_db: Path) -> None:
     assert "fire-cider" not in slugs
 
 
+def test_search_library_min_minutes_excludes_nulls(populated_db: Path) -> None:
+    rows = queries.search_library(populated_db, min_minutes=40)
+    slugs = {r.slug for r in rows}
+    # Long: tomato sauce (45), roast chicken (90).
+    assert "simple-tomato-sauce" in slugs
+    assert "lemon-garlic-roast-chicken" in slugs
+    # Quicker recipes excluded.
+    assert "classic-french-omelette" not in slugs
+    assert "miso-glazed-eggplant" not in slugs
+    # Fire cider has no total_minutes; excluded when min_minutes is set.
+    assert "fire-cider" not in slugs
+
+
+def test_search_library_min_max_minutes_window(populated_db: Path) -> None:
+    rows = queries.search_library(populated_db, min_minutes=30, max_minutes=35)
+    slugs = {r.slug for r in rows}
+    assert slugs == {"miso-glazed-eggplant", "chickpea-spinach-curry"}
+
+
+def test_search_library_favorites_only_empty_when_none(populated_db: Path) -> None:
+    # No fixture recipe is favorited, so the favorites view is empty while the
+    # unfiltered view returns the full corpus.
+    assert queries.search_library(populated_db, favorites_only=True) == []
+    assert queries.search_library(populated_db) != []
+
+
 def test_search_library_sort_time_puts_nulls_last(populated_db: Path) -> None:
     rows = queries.search_library(populated_db, sort="time")
     times = [r.total_minutes for r in rows]

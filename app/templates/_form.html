@@ -64,6 +64,11 @@
       <input type="text" name="cuisine" value="{{ form.cuisine }}" autocomplete="off"
              placeholder="e.g. italian, japanese, american">
     </label>
+
+    <label class="fav-field">
+      <input type="checkbox" name="favorite" value="1" {% if form.favorite %}checked{% endif %}>
+      Mark as favorite
+    </label>
   </fieldset>
 
   <fieldset>
@@ -134,6 +139,15 @@
   </fieldset>
 
   <fieldset>
+    <legend>Image</legend>
+    <label>
+      Image URL <small>(shown as the hero/thumbnail)</small>
+      <input type="url" name="image_url" value="{{ form.image_url }}" autocomplete="off"
+             placeholder="https://example.com/photo.jpg">
+    </label>
+  </fieldset>
+
+  <fieldset>
     <legend>Source</legend>
     <label>
       URL
@@ -181,9 +195,9 @@
   <div class="form-actions">
     <button type="submit">{{ "Create recipe" if mode == "new" else "Save changes" }}</button>
     {% if mode == "edit" %}
-    <a href="/r/{{ slug }}" role="button" class="secondary outline">Cancel</a>
+    <a href="/r/{{ slug }}" role="button" class="btn-link secondary">Cancel</a>
     {% else %}
-    <a href="/" role="button" class="secondary outline">Cancel</a>
+    <a href="/" role="button" class="btn-link secondary">Cancel</a>
     {% endif %}
   </div>
 

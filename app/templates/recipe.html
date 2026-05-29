@@ -1,73 +1,128 @@
 {% extends "base.html" %}
 {% block title %}{{ d.recipe.title }}{% endblock %}
-{% block content %}
-<article class="recipe-detail">
-  <header>
-    <h1>{{ d.recipe.title }}</h1>
-    {% if d.recipe.archived %}<p class="archived-badge no-print"><em>This recipe is archived.</em></p>{% endif %}
-    <div class="chips">
-      {% if d.recipe.cuisine %}<span class="chip chip-cuisine">{{ d.recipe.cuisine }}</span>{% endif %}
-      {% for m in d.meal_types %}<span class="chip chip-meal">{{ m }}</span>{% endfor %}
-      {% for di in d.dietary %}<span class="chip chip-dietary">{{ di }}</span>{% endfor %}
-      {% for t in d.tags %}<span class="chip chip-tag">{{ t }}</span>{% endfor %}
-    </div>
-    <dl class="meta">
-      {% if d.recipe.prep_minutes is not none %}<dt>Prep</dt><dd>{{ d.recipe.prep_minutes }} min</dd>{% endif %}
-      {% if d.recipe.cook_minutes is not none %}<dt>Cook</dt><dd>{{ d.recipe.cook_minutes }} min</dd>{% endif %}
-      {% if d.recipe.total_minutes is not none %}<dt>Total</dt><dd>{{ d.recipe.total_minutes }} min</dd>{% endif %}
-      {% if d.recipe.servings is not none %}<dt>Servings</dt><dd>{{ d.recipe.servings }}</dd>{% endif %}
-    </dl>
-    {% if d.source_url or d.source_attribution %}
-    <p class="source">
-      Source:
-      {% if d.source_url %}<a href="{{ d.source_url }}" rel="nofollow noopener">{{ d.source_url }}</a>{% endif %}
-      {% if d.source_attribution %}<br><small>{{ d.source_attribution }}</small>{% endif %}
-    </p>
-    {% endif %}
-    <div class="recipe-actions no-print">
-      <button type="button" onclick="window.print()">Print</button>
-      <a href="/r/{{ d.recipe.slug }}/edit" role="button" class="secondary outline">Edit</a>
-      {% if d.recipe.archived %}
-      <form method="post" action="/r/{{ d.recipe.slug }}/unarchive" style="display:inline">
-        <button type="submit" class="outline">Unarchive</button>
-      </form>
-      {% else %}
-      <form method="post" action="/r/{{ d.recipe.slug }}/archive" style="display:inline">
-        <button type="submit" class="secondary outline">Archive</button>
-      </form>
+{% block body %}
+{% set images = d.frontmatter.get('images') %}
+{% set hero = images[0] if images else none %}
+<div class="detail">
+  <a class="back" href="/">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    All recipes
+  </a>
+
+  <article class="recipe-detail">
+    <div class="hero" style="background: linear-gradient(135deg, hsl(14 62% 52%), hsl(28 70% 60%))">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v7a2 2 0 0 0 2 2v9M8 3v7M6 3v7M18 3c-1.5 0-3 1.5-3 5s1 5 3 5m0-10v17"/></svg>
+      {% if hero and hero.get('path') %}
+        <img src="{% if hero.path.startswith('http') %}{{ hero.path }}{% else %}/media/{{ hero.path }}{% endif %}"
+             alt="{{ hero.get('alt') or d.recipe.title }}" onerror="this.remove()">
       {% endif %}
     </div>
-  </header>
 
-  <aside class="ingredients">
-    <h2>Ingredients</h2>
-    <ul>
-      {% for ing in d.ingredients %}
-      <li>{{ ing.original_text }}{% if ing.optional %} <em>(optional)</em>{% endif %}</li>
-      {% endfor %}
-    </ul>
-    {% if d.equipment %}
-    <h3>Equipment</h3>
-    <ul>
-      {% for e in d.equipment %}<li>{{ e }}</li>{% endfor %}
-    </ul>
-    {% endif %}
-  </aside>
+    <div class="recipe-body">
+      <header class="recipe-head">
+        {% set eyebrow_bits = [] %}
+        {% for m in d.meal_types %}{% set _ = eyebrow_bits.append(m) %}{% endfor %}
+        {% if d.recipe.cuisine %}{% set _ = eyebrow_bits.append(d.recipe.cuisine) %}{% endif %}
+        {% if eyebrow_bits %}<span class="eyebrow">{{ eyebrow_bits | join(' · ') }}</span>{% endif %}
+        <h1>{{ d.recipe.title }}</h1>
+        {% if d.recipe.archived %}<p class="archived-badge no-print"><em>This recipe is archived.</em></p>{% endif %}
 
-  <section class="body">
-    {{ d.body_markdown | md | safe }}
-  </section>
+        <div class="recipe-stats">
+          {% if d.recipe.total_minutes is not none %}
+          <span class="stat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+            <b>{{ d.recipe.total_minutes }} min</b>
+          </span>
+          {% endif %}
+          {% if d.recipe.servings is not none %}
+          <span class="stat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
+            Serves <b>{{ d.recipe.servings }}</b>
+          </span>
+          {% endif %}
+          <form class="save-form no-print" method="post"
+                action="/r/{{ d.recipe.slug }}/{{ 'unfavorite' if d.recipe.favorite else 'favorite' }}?next=/r/{{ d.recipe.slug }}">
+            <button type="submit" class="save-btn{% if d.recipe.favorite %} on{% endif %}" aria-pressed="{{ 'true' if d.recipe.favorite else 'false' }}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21.5l8.8-8.8a5 5 0 0 0 0-7.1z"/></svg>
+              {{ 'Saved' if d.recipe.favorite else 'Save' }}
+            </button>
+          </form>
+        </div>
+      </header>
 
-  {% set nutrition = d.frontmatter.get('nutrition') %}
-  {% if nutrition %}
-  <details class="nutrition no-print">
-    <summary>Nutrition (per serving)</summary>
-    <dl>
-      {% for k, v in nutrition.items() %}
-        {% if v is not none %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endif %}
-      {% endfor %}
-    </dl>
-  </details>
-  {% endif %}
-</article>
+      {% if d.recipe.summary %}<p class="lead">{{ d.recipe.summary }}</p>{% endif %}
+
+      {% set tags = d.tags + d.dietary %}
+      {% if tags %}
+      <div class="tag-row">
+        {% for t in d.dietary %}<span class="chip">{{ t }}</span>{% endfor %}
+        {% for t in d.tags %}<span class="chip">{{ t }}</span>{% endfor %}
+      </div>
+      {% endif %}
+
+      {% if d.recipe.prep_minutes is not none or d.recipe.cook_minutes is not none or d.recipe.total_minutes is not none %}
+      <section class="prep">
+        <h2>Preparation time</h2>
+        <dl>
+          {% if d.recipe.total_minutes is not none %}<dt>Total</dt><dd>approximately {{ d.recipe.total_minutes }} minutes</dd>{% endif %}
+          {% if d.recipe.prep_minutes is not none %}<dt>Preparation</dt><dd>{{ d.recipe.prep_minutes }} minutes</dd>{% endif %}
+          {% if d.recipe.cook_minutes is not none %}<dt>Cooking</dt><dd>{{ d.recipe.cook_minutes }} minutes</dd>{% endif %}
+        </dl>
+      </section>
+      {% endif %}
+
+      <section class="section">
+        <h2>Ingredients</h2>
+        <ul class="ingredients-list">
+          {% for ing in d.ingredients %}
+          <li><span>{{ ing.original_text }}{% if ing.optional %} <em>(optional)</em>{% endif %}</span></li>
+          {% endfor %}
+        </ul>
+        {% if d.equipment %}
+        <ul class="equipment-list">
+          {% for e in d.equipment %}<li>{{ e }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+      </section>
+
+      <section class="section body-prose">
+        {{ d.body_markdown | md | safe }}
+      </section>
+
+      {% set nutrition = d.frontmatter.get('nutrition') %}
+      {% if nutrition %}
+      <details class="nutrition no-print">
+        <summary>Nutrition (per serving)</summary>
+        <dl>
+          {% for k, v in nutrition.items() %}
+            {% if v is not none %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endif %}
+          {% endfor %}
+        </dl>
+      </details>
+      {% endif %}
+
+      {% if d.source_url or d.source_attribution %}
+      <p class="source">
+        Source:
+        {% if d.source_url %}<a href="{{ d.source_url }}" rel="nofollow noopener">{{ d.source_url }}</a>{% endif %}
+        {% if d.source_attribution %}<br><small>{{ d.source_attribution }}</small>{% endif %}
+      </p>
+      {% endif %}
+
+      <div class="recipe-actions no-print">
+        <button type="button" class="btn btn-ghost" onclick="window.print()">Print</button>
+        <a href="/r/{{ d.recipe.slug }}/edit" class="btn btn-ghost">Edit</a>
+        {% if d.recipe.archived %}
+        <form method="post" action="/r/{{ d.recipe.slug }}/unarchive">
+          <button type="submit" class="btn btn-ghost">Unarchive</button>
+        </form>
+        {% else %}
+        <form method="post" action="/r/{{ d.recipe.slug }}/archive">
+          <button type="submit" class="btn btn-ghost">Archive</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+</div>
 {% endblock %}

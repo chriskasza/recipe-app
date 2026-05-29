@@ -98,6 +98,7 @@ class Recipe(BaseModel):
     created_at: datetime
     updated_at: datetime
     archived: bool = False
+    favorite: bool = False
     body: RecipeBody = Field(default_factory=RecipeBody)
 
 

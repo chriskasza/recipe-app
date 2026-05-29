@@ -25,6 +25,7 @@ class RecipeRow:
     cook_minutes: int | None
     total_minutes: int | None
     archived: bool
+    favorite: bool
     updated_at: str
     file_path: str
 
@@ -51,6 +52,8 @@ class LibraryRow:
     cuisine: str | None
     total_minutes: int | None
     updated_at: str
+    favorite: bool
+    hero_path: str | None
     tags: tuple[str, ...]
     dietary: tuple[str, ...]
     meal_types: tuple[str, ...]
@@ -90,6 +93,7 @@ def _row_to_recipe(row: sqlite3.Row) -> RecipeRow:
         cook_minutes=row["cook_minutes"],
         total_minutes=row["total_minutes"],
         archived=bool(row["archived"]),
+        favorite=bool(row["favorite"]),
         updated_at=row["updated_at"],
         file_path=row["file_path"],
     )
@@ -245,6 +249,8 @@ def _build_filters(
     meal_types: list[str],
     dietary: list[str],
     max_minutes: int | None,
+    min_minutes: int | None = None,
+    favorites_only: bool = False,
     exclude_group: str | None = None,
 ) -> tuple[list[str], list[object], bool]:
     """Build the shared WHERE fragments and params used by library + facet queries.
@@ -286,6 +292,13 @@ def _build_filters(
         where.append("r.total_minutes IS NOT NULL AND r.total_minutes <= ?")
         params.append(max_minutes)
 
+    if min_minutes is not None:
+        where.append("r.total_minutes IS NOT NULL AND r.total_minutes >= ?")
+        params.append(min_minutes)
+
+    if favorites_only:
+        where.append("r.favorite = 1")
+
     return where, params, has_fts
 
 
@@ -298,6 +311,8 @@ def search_library(
     meal_types: list[str] | None = None,
     dietary: list[str] | None = None,
     max_minutes: int | None = None,
+    min_minutes: int | None = None,
+    favorites_only: bool = False,
     sort: SortKey = "recent",
     limit: int = 100,
 ) -> list[LibraryRow]:
@@ -314,6 +329,8 @@ def search_library(
         meal_types=meal_types,
         dietary=dietary,
         max_minutes=max_minutes,
+        min_minutes=min_minutes,
+        favorites_only=favorites_only,
     )
 
     effective_sort: SortKey = sort
@@ -328,6 +345,8 @@ def search_library(
         "r.cuisine",
         "r.total_minutes",
         "r.updated_at",
+        "r.favorite",
+        "r.frontmatter_json",
         "(SELECT GROUP_CONCAT(t.name, '|') FROM recipe_tags rt JOIN tags t ON t.id = rt.tag_id "
         "WHERE rt.recipe_id = r.id) AS tag_names",
         "(SELECT GROUP_CONCAT(d.name, '|') FROM recipe_dietary rd JOIN dietary_flags d ON d.id = rd.dietary_id "
@@ -384,12 +403,35 @@ def search_library(
             cuisine=r["cuisine"],
             total_minutes=r["total_minutes"],
             updated_at=str(r["updated_at"]),
+            favorite=bool(r["favorite"]),
+            hero_path=_hero_path(r["frontmatter_json"]),
             tags=_split(r["tag_names"]),
             dietary=_split(r["dietary_names"]),
             meal_types=_split(r["meal_type_names"]),
         )
         for r in rows
     ]
+
+
+def _hero_path(frontmatter_json: object) -> str | None:
+    """Extract the first image path from a recipe's normalized frontmatter JSON.
+
+    Display-only: returned as stored (a recipe-relative path like ``images/x.jpg``
+    or an absolute URL). Returns None when the recipe has no images.
+    """
+    if not frontmatter_json:
+        return None
+    try:
+        data = json.loads(str(frontmatter_json))
+    except json.JSONDecodeError:
+        return None
+    images = data.get("images") if isinstance(data, dict) else None
+    if isinstance(images, list) and images:
+        first = images[0]
+        if isinstance(first, dict):
+            path = first.get("path")
+            return str(path) if path else None
+    return None
 
 
 def _facet_counts(
@@ -402,6 +444,8 @@ def _facet_counts(
     meal_types: list[str],
     dietary: list[str],
     max_minutes: int | None,
+    min_minutes: int | None = None,
+    favorites_only: bool = False,
 ) -> list[FacetCount]:
     """Return name + count for one facet group, scoped to the current filter set
     minus the group's own selection (so counts reflect "what's still available")."""
@@ -413,6 +457,8 @@ def _facet_counts(
         meal_types=meal_types,
         dietary=dietary,
         max_minutes=max_minutes,
+        min_minutes=min_minutes,
+        favorites_only=favorites_only,
         exclude_group=group,
     )
 
@@ -454,6 +500,8 @@ def facet_counts_tags(
     meal_types: list[str] | None = None,
     dietary: list[str] | None = None,
     max_minutes: int | None = None,
+    min_minutes: int | None = None,
+    favorites_only: bool = False,
 ) -> list[FacetCount]:
     return _facet_counts(
         db_path,
@@ -464,6 +512,8 @@ def facet_counts_tags(
         meal_types=meal_types or [],
         dietary=dietary or [],
         max_minutes=max_minutes,
+        min_minutes=min_minutes,
+        favorites_only=favorites_only,
     )
 
 
@@ -476,6 +526,8 @@ def facet_counts_cuisines(
     meal_types: list[str] | None = None,
     dietary: list[str] | None = None,
     max_minutes: int | None = None,
+    min_minutes: int | None = None,
+    favorites_only: bool = False,
 ) -> list[FacetCount]:
     return _facet_counts(
         db_path,
@@ -486,6 +538,8 @@ def facet_counts_cuisines(
         meal_types=meal_types or [],
         dietary=dietary or [],
         max_minutes=max_minutes,
+        min_minutes=min_minutes,
+        favorites_only=favorites_only,
     )
 
 
@@ -498,6 +552,8 @@ def facet_counts_meal_types(
     meal_types: list[str] | None = None,
     dietary: list[str] | None = None,
     max_minutes: int | None = None,
+    min_minutes: int | None = None,
+    favorites_only: bool = False,
 ) -> list[FacetCount]:
     return _facet_counts(
         db_path,
@@ -508,6 +564,8 @@ def facet_counts_meal_types(
         meal_types=meal_types or [],
         dietary=dietary or [],
         max_minutes=max_minutes,
+        min_minutes=min_minutes,
+        favorites_only=favorites_only,
     )
 
 
@@ -520,6 +578,8 @@ def facet_counts_dietary(
     meal_types: list[str] | None = None,
     dietary: list[str] | None = None,
     max_minutes: int | None = None,
+    min_minutes: int | None = None,
+    favorites_only: bool = False,
 ) -> list[FacetCount]:
     return _facet_counts(
         db_path,
@@ -530,6 +590,8 @@ def facet_counts_dietary(
         meal_types=meal_types or [],
         dietary=dietary or [],
         max_minutes=max_minutes,
+        min_minutes=min_minutes,
+        favorites_only=favorites_only,
     )
 
 

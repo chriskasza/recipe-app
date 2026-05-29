@@ -1,60 +1,62 @@
+<div class="sidebar-head">
+  <h2>Filters</h2>
+  <a class="clear-link" href="/">Clear all</a>
+</div>
 <form id="filters"
       hx-get="/search"
       hx-target="#results"
       hx-swap="innerHTML"
-      hx-include="closest form"
+      hx-include="#sortSelect"
       hx-push-url="true"
-      hx-trigger="change, keyup changed delay:250ms from:input[name='q'], search from:input[name='q']">
-  <label>
-    Search
-    <input type="search" name="q" value="{{ selected.q }}" placeholder="tomato, miso, weeknight...">
-  </label>
+      hx-trigger="change, input delay:300ms from:input[type='range']">
 
-  <label>
-    Sort
-    <select name="sort">
-      {% for value, label in [
-        ('relevance', 'Relevance'),
-        ('recent', 'Recently updated'),
-        ('time', 'Total time'),
-        ('title', 'Title')
-      ] %}
-        <option value="{{ value }}"{% if selected.sort == value %} selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-  </label>
-
-  <div x-data="{ v: {{ selected.max_minutes if selected.max_minutes is not none else 180 }} }">
-    <label>
-      Max time: <span x-text="v"></span> min
-      <input type="range" name="max_minutes" min="0" max="180" step="5"
-             value="{{ selected.max_minutes if selected.max_minutes is not none else 180 }}"
-             @input="v = $event.target.value">
-    </label>
-    <small>Set to 180 to disable.</small>
-  </div>
+  {# Search lives in the header; carry its value so facet changes preserve it. #}
+  <input type="hidden" name="q" value="{{ selected.q }}">
+  {% if selected.favorites_only %}<input type="hidden" name="favorite" value="1">{% endif %}
 
   {% macro facet_block(title, group, name) %}
     {% if facets[group] %}
-      <details open>
+      <details class="fgroup" open>
         <summary>{{ title }}</summary>
-        {% for fc in facets[group] %}
-          <label class="facet-item">
-            <input type="checkbox" name="{{ name }}" value="{{ fc.name }}"
-                   {% if fc.name in selected[group] %}checked{% endif %}>
-            {{ fc.name }} <small>({{ fc.count }})</small>
-          </label>
-        {% endfor %}
+        <div class="fgroup-body">
+          {% for fc in facets[group] %}
+            <label class="facet-item">
+              <input type="checkbox" name="{{ name }}" value="{{ fc.name }}"
+                     {% if fc.name in selected[group] %}checked{% endif %}>
+              <span class="name">{{ fc.name }}</span>
+              <span class="count">{{ fc.count }}</span>
+            </label>
+          {% endfor %}
+        </div>
       </details>
     {% endif %}
   {% endmacro %}
 
-  {{ facet_block('Tags', 'tags', 'tag') }}
+  {{ facet_block('Category', 'meal_types', 'meal') }}
   {{ facet_block('Cuisine', 'cuisines', 'cuisine') }}
-  {{ facet_block('Meal type', 'meal_types', 'meal') }}
+
+  <details class="fgroup" open
+           x-data="{ lo: {{ selected.min_minutes if selected.min_minutes is not none else 0 }},
+                     hi: {{ selected.max_minutes if selected.max_minutes is not none else 180 }} }">
+    <summary>Total time</summary>
+    <div class="fgroup-body range-group">
+      <label>Min: <span x-text="lo == 0 ? 'Any' : lo + ' min'"></span>
+        <input type="range" name="min_minutes" min="0" max="180" step="5"
+               :value="lo" @input="lo = Math.min(+$event.target.value, hi)">
+      </label>
+      <label>Max: <span x-text="hi >= 180 ? 'Any' : hi + ' min'"></span>
+        <input type="range" name="max_minutes" min="0" max="180" step="5"
+               :value="hi" @input="hi = Math.max(+$event.target.value, lo)">
+      </label>
+      <div class="range-vals">
+        <span x-text="lo == 0 ? 'Any' : lo + ' min'"></span>
+        <span x-text="hi >= 180 ? 'Any' : hi + ' min'"></span>
+      </div>
+      <small class="range-hint">Drag a handle to its end (“Any”) to remove that limit — shows untimed and 3 hr+ recipes.</small>
+    </div>
+  </details>
+
   {{ facet_block('Dietary', 'dietary', 'diet') }}
 
-  <noscript>
-    <button type="submit">Apply</button>
-  </noscript>
+  <noscript><div class="fgroup-body"><button type="submit" class="btn btn-primary">Apply</button></div></noscript>
 </form>

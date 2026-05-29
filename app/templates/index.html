@@ -1,12 +1,36 @@
 {% extends "base.html" %}
 {% block title %}Recipes{% endblock %}
-{% block content %}
-<div class="library">
-  <aside id="facets" class="no-print">
+{% block body %}
+<div class="page">
+  <aside id="facets" class="sidebar no-print">
     {% include "_facets.html" %}
   </aside>
-  <section id="results">
-    {% include "_results.html" %}
-  </section>
+
+  <main class="main">
+    <div class="main-head">
+      <div class="title-wrap">
+        <h1>{% if selected.favorites_only %}My recipes{% else %}All recipes{% endif %}</h1>
+      </div>
+      <div class="sort">
+        <span class="label">Sort</span>
+        <select id="sortSelect" name="sort"
+                hx-get="/search" hx-target="#results" hx-swap="innerHTML"
+                hx-include="#filters" hx-push-url="true">
+          {% for value, label in [
+            ('relevance', 'Relevance'),
+            ('recent', 'Newest first'),
+            ('time', 'Total time'),
+            ('title', 'Title')
+          ] %}
+            <option value="{{ value }}"{% if selected.sort == value %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <section id="results">
+      {% include "_results.html" %}
+    </section>
+  </main>
 </div>
 {% endblock %}
