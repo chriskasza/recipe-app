@@ -351,33 +351,34 @@ def validate_all(recipes_dir: Path) -> list[tuple[Path, list[ValidationIssue]]]:
     from app.core.validator import IssueLevel  # local import to avoid cycle at module load
 
     results: list[tuple[Path, list[ValidationIssue]]] = []
-    seen_slugs: dict[str, Path] = {}
+    # slug → indices into ``results`` of every file sharing that stem, so a
+    # duplicate can be flagged on *all* participants (including the first),
+    # not just the later ones.
+    slug_indices: dict[str, list[int]] = {}
     for path in _iter_recipe_files(recipes_dir):
-        slug = path.stem
-        first = seen_slugs.get(slug)
-        if first is not None:
-            results.append(
-                (
-                    path,
-                    [
-                        ValidationIssue(
-                            IssueLevel.ERROR,
-                            "slug.duplicate",
-                            f"duplicate slug {slug!r}: also defined at {first}",
-                            "slug",
-                        )
-                    ],
-                )
-            )
-            continue
-        seen_slugs[slug] = path
         try:
             _, issues = parse_file(path)
         except Exception as exc:
             issues = [
                 ValidationIssue(IssueLevel.ERROR, "parse.error", str(exc), "")
             ]
+        slug_indices.setdefault(path.stem, []).append(len(results))
         results.append((path, issues))
+
+    for slug, indices in slug_indices.items():
+        if len(indices) < 2:
+            continue
+        others = [results[i][0] for i in indices]
+        for idx in indices:
+            siblings = ", ".join(str(p) for p in others if p != results[idx][0])
+            results[idx][1].append(
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    "slug.duplicate",
+                    f"duplicate slug {slug!r}: also defined at {siblings}",
+                    "slug",
+                )
+            )
     return results
 
 

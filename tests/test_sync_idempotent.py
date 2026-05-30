@@ -107,13 +107,21 @@ def test_duplicate_slug_across_dirs_errors(tmp_path: Path, tmp_db: Path) -> None
     report = sync.sync_all(corpus, tmp_db)
     assert not report.ok
     assert any("duplicate slug" in e for e in report.errors)
+    # First file by sorted path wins: a/dup-recipe.md sorts before b/.
     assert count_recipes(tmp_db) == 1
+    with connection(tmp_db) as conn:
+        kept = conn.execute("SELECT file_path FROM recipes").fetchone()["file_path"]
+    assert kept.endswith(str(Path("a") / "dup-recipe.md"))
 
     results = sync.validate_all(corpus)
-    dup = [
-        issue
-        for _path, issues in results
+    flagged = {
+        path
+        for path, issues in results
         for issue in issues
         if issue.code == "slug.duplicate"
-    ]
-    assert dup, "validate_all should flag the duplicate slug"
+    }
+    # Both participants are flagged, not just the second.
+    assert flagged == {
+        corpus / "a" / "dup-recipe.md",
+        corpus / "b" / "dup-recipe.md",
+    }
