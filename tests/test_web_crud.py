@@ -495,6 +495,27 @@ def test_new_post_into_folder(
     assert "Folder Pasta" in detail.text
 
 
+def test_find_recipe_file_warns_on_duplicate_slug(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A stem collision returns the first sorted path but logs a warning."""
+    import logging
+
+    from app.web.forms import find_recipe_file
+
+    recipes_dir = tmp_path / "recipes"
+    (recipes_dir / "a").mkdir(parents=True)
+    (recipes_dir / "b").mkdir(parents=True)
+    (recipes_dir / "a" / "dup.md").write_text("x")
+    (recipes_dir / "b" / "dup.md").write_text("y")
+
+    with caplog.at_level(logging.WARNING, logger="app.web.forms"):
+        found = find_recipe_file(recipes_dir, "dup")
+
+    assert found == recipes_dir / "a" / "dup.md"
+    assert any("duplicate slug" in r.message for r in caplog.records)
+
+
 def test_resolve_new_recipe_path_rejects_symlinked_folder(tmp_path: Path) -> None:
     """A symlinked folder component must not let .resolve() escape the tree."""
     from app.web.forms import resolve_new_recipe_path

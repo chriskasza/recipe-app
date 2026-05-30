@@ -8,6 +8,7 @@ roundtrip-stable from the moment it hits disk.
 from __future__ import annotations
 
 import io
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PureWindowsPath
@@ -19,6 +20,8 @@ from app.core.ids import new_ulid
 from app.core.serializer import _yaml
 from app.core.validator import IssueLevel, ValidationIssue
 from app.db.sync import EXCLUDED_DIRS
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -107,13 +110,31 @@ def find_recipe_file(recipes_dir: Path, slug: str) -> Path | None:
     Folders are organization-only, so a recipe may live in any subdirectory.
     Helper directories (drafts, image sidecars) are skipped. Returns None when
     no matching file exists.
+
+    Slugs are globally unique by invariant (enforced in ``sync_all`` /
+    ``validate_all`` and the ``slug_in_use`` collision check). If two files
+    nonetheless share a stem — a TOCTOU race or out-of-band filesystem edit —
+    we deterministically return the first by sorted path but log a warning so
+    the ambiguity is visible rather than silently resolved.
     """
     if not slug:
         return None
-    for path in sorted(recipes_dir.rglob(f"{slug}.md")):
-        if EXCLUDED_DIRS.isdisjoint(path.relative_to(recipes_dir).parts):
-            return path
-    return None
+    matches = [
+        path
+        for path in sorted(recipes_dir.rglob(f"{slug}.md"))
+        if EXCLUDED_DIRS.isdisjoint(path.relative_to(recipes_dir).parts)
+    ]
+    if not matches:
+        return None
+    if len(matches) > 1:
+        logger.warning(
+            "duplicate slug %r resolves to %d files: %s — using %s",
+            slug,
+            len(matches),
+            ", ".join(str(p) for p in matches),
+            matches[0],
+        )
+    return matches[0]
 
 
 def slug_in_use(recipes_dir: Path, slug: str) -> bool:
