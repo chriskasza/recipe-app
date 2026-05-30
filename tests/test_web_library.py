@@ -105,7 +105,7 @@ def test_pagination_pages_through_results(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr("app.web.library.PAGE_SIZE", 3)
-    # With 7 fixtures and PAGE_SIZE=3 we expect 3 pages of 3 / 3 / 1.
+    # With 8 fixtures and PAGE_SIZE=3 we expect 3 pages of 3 / 3 / 2.
     page1 = client.get("/search", params={"sort": "title", "page": 1}).text
     page2 = client.get("/search", params={"sort": "title", "page": 2}).text
     page3 = client.get("/search", params={"sort": "title", "page": 3}).text
@@ -113,17 +113,17 @@ def test_pagination_pages_through_results(
     slugs1, slugs2, slugs3 = _card_slugs(page1), _card_slugs(page2), _card_slugs(page3)
     assert len(slugs1) == 3
     assert len(slugs2) == 3
-    assert len(slugs3) == 1
+    assert len(slugs3) == 2
 
     # Pages are disjoint and cover the whole corpus.
     assert set(slugs1).isdisjoint(slugs2)
     assert set(slugs1 + slugs2).isdisjoint(slugs3)
 
     # Range + nav reflect position (the template uses an en-dash for the range).
-    assert "Showing <b>1\u20133</b> of 7" in page1
+    assert "Showing <b>1\u20133</b> of 8" in page1
     assert "Page 1 of 3" in page1
     assert 'class="pagination' in page1
-    assert "Showing <b>7\u20137</b> of 7" in page3
+    assert "Showing <b>7\u20138</b> of 8" in page3
     assert "Page 3 of 3" in page3
 
 
