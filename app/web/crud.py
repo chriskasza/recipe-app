@@ -245,8 +245,7 @@ async def new_submit(
     sync_errors = _write_and_sync(path, text, recipes_dir, db_path)
     if sync_errors:
         error_dicts = [
-            {"level": "error", "code": "sync", "message": e, "path": ""}
-            for e in sync_errors
+            {"level": "error", "code": "sync", "message": e, "path": ""} for e in sync_errors
         ]
         return templates.TemplateResponse(
             request,
@@ -339,8 +338,7 @@ async def edit_submit(
     sync_errors = _write_and_sync(path, text, recipes_dir, db_path)
     if sync_errors:
         error_dicts = [
-            {"level": "error", "code": "sync", "message": e, "path": ""}
-            for e in sync_errors
+            {"level": "error", "code": "sync", "message": e, "path": ""} for e in sync_errors
         ]
         return templates.TemplateResponse(
             request,
@@ -379,11 +377,11 @@ def unarchive_recipe(
     return RedirectResponse(f"/r/{slug}", status_code=303)
 
 
-def _flip_archived(
-    slug: str, *, archived: bool, recipes_dir: Path, db_path: Path
-) -> None:
+def _flip_archived(slug: str, *, archived: bool, recipes_dir: Path, db_path: Path) -> None:
     """Toggle the archived flag by mutating raw_yaml and re-serializing."""
-    _flip_bool_field(slug, field="archived", value=archived, recipes_dir=recipes_dir, db_path=db_path)
+    _flip_bool_field(
+        slug, field="archived", value=archived, recipes_dir=recipes_dir, db_path=db_path
+    )
 
 
 @router.post("/r/{slug}/favorite")

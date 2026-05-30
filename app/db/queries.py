@@ -101,9 +101,7 @@ def _row_to_recipe(row: sqlite3.Row) -> RecipeRow:
 
 def get_recipe_by_slug(db_path: Path, slug: str) -> RecipeRow | None:
     with connection(db_path) as conn:
-        row = conn.execute(
-            "SELECT * FROM recipes WHERE slug = ?", (slug,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM recipes WHERE slug = ?", (slug,)).fetchone()
         return _row_to_recipe(row) if row else None
 
 
@@ -158,21 +156,15 @@ def list_tags(db_path: Path, recipe_id: str) -> list[str]:
 
 
 def list_meal_types(db_path: Path, recipe_id: str) -> list[str]:
-    return _list_linked_names(
-        db_path, recipe_id, "meal_types", "recipe_meal_types", "meal_type_id"
-    )
+    return _list_linked_names(db_path, recipe_id, "meal_types", "recipe_meal_types", "meal_type_id")
 
 
 def list_dietary(db_path: Path, recipe_id: str) -> list[str]:
-    return _list_linked_names(
-        db_path, recipe_id, "dietary_flags", "recipe_dietary", "dietary_id"
-    )
+    return _list_linked_names(db_path, recipe_id, "dietary_flags", "recipe_dietary", "dietary_id")
 
 
 def list_equipment(db_path: Path, recipe_id: str) -> list[str]:
-    return _list_linked_names(
-        db_path, recipe_id, "equipment", "recipe_equipment", "equipment_id"
-    )
+    return _list_linked_names(db_path, recipe_id, "equipment", "recipe_equipment", "equipment_id")
 
 
 def count_recipes(db_path: Path) -> int:
@@ -189,9 +181,7 @@ def count_fts_rows(db_path: Path) -> int:
 
 def last_sync_run(db_path: Path) -> dict[str, object] | None:
     with connection(db_path) as conn:
-        row = conn.execute(
-            "SELECT * FROM sync_runs ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        row = conn.execute("SELECT * FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
         if row is None:
             return None
         d = dict(row)
@@ -465,8 +455,14 @@ def _facet_counts(
     if group == "cuisines":
         select = (
             "SELECT r.cuisine AS name, COUNT(*) AS n FROM recipes r "
-            + ("JOIN (SELECT rowid FROM recipes_fts WHERE recipes_fts MATCH ?) fts ON fts.rowid = r.rowid " if has_fts else "")
-            + "WHERE " + " AND ".join([*where, "r.cuisine IS NOT NULL"]) + " "
+            + (
+                "JOIN (SELECT rowid FROM recipes_fts WHERE recipes_fts MATCH ?) fts ON fts.rowid = r.rowid "
+                if has_fts
+                else ""
+            )
+            + "WHERE "
+            + " AND ".join([*where, "r.cuisine IS NOT NULL"])
+            + " "
             "GROUP BY r.cuisine ORDER BY n DESC, name ASC"
         )
     else:
@@ -474,7 +470,11 @@ def _facet_counts(
         select = (
             "SELECT v.name AS name, COUNT(DISTINCT r.id) AS n "
             "FROM recipes r "
-            + ("JOIN (SELECT rowid FROM recipes_fts WHERE recipes_fts MATCH ?) fts ON fts.rowid = r.rowid " if has_fts else "")
+            + (
+                "JOIN (SELECT rowid FROM recipes_fts WHERE recipes_fts MATCH ?) fts ON fts.rowid = r.rowid "
+                if has_fts
+                else ""
+            )
             + f"JOIN {link} link ON link.recipe_id = r.id "
             f"JOIN {vocab} v ON v.id = link.{fk} "
             f"WHERE " + " AND ".join(where) + " "
@@ -598,9 +598,7 @@ def facet_counts_dietary(
 def get_recipe_detail(db_path: Path, slug: str) -> RecipeDetail | None:
     """Bundle everything the recipe detail page needs in a single facade."""
     with connection(db_path) as conn:
-        row = conn.execute(
-            "SELECT * FROM recipes WHERE slug = ?", (slug,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM recipes WHERE slug = ?", (slug,)).fetchone()
         if row is None:
             return None
         recipe = _row_to_recipe(row)

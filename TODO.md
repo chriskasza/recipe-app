@@ -85,6 +85,17 @@ Separated the frozen test corpus from the dev-runtime scratch directory.
 GHA layer cache (`type=gha`) warms subsequent builds. Image is private (inherited from repo).
 `GETTING-STARTED.md` and `README.md` updated to use the published image as the primary Docker path.
 
+## CI/CD — Quality gates workflow ✅ (2026-05-30)
+
+`.github/workflows/ci.yml` runs on every push and pull request. Separate steps for:
+`ruff check`, `ruff format --check`, `mypy --strict app/`, `recipes validate`
+(against `tests/fixtures/recipes/`), and `pytest` with coverage (summary in log +
+`coverage.xml` artifact). Concurrency control cancels superseded runs on the same ref.
+Tools invoked via `.venv/bin/` per project conventions. `pytest-cov` added to the
+`[dev]` group. Action pins bumped to latest (`checkout@v6`, `setup-python@v6`,
+`build-push-action@v6`). `README.md` updated with a CI badge and aligned local-dev
+gate commands.
+
 ## Docs & planning — Modular restructure ✅ (2026-05-29)
 
 Re-framed the project as a modular system (no app-code changes). Module map + decision records in

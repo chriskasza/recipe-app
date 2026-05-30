@@ -50,9 +50,7 @@ def test_unknown_dietary_is_warning_not_error() -> None:
 
 
 def test_time_math_warning() -> None:
-    rec = _base().model_copy(
-        update={"prep_minutes": 10, "cook_minutes": 20, "total_minutes": 99}
-    )
+    rec = _base().model_copy(update={"prep_minutes": 10, "cook_minutes": 20, "total_minutes": 99})
     issues = validate_recipe(rec)
     assert any(i.code == "time.math" for i in issues)
     assert not has_errors(issues)

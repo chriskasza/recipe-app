@@ -18,7 +18,7 @@ This project is a modular system on one core (a Markdown recipe corpus). See [`d
 
 ## Tooling
 
-- Python 3.12. Strong typing throughout: `mypy --strict` must pass on `app/`.
+- Python 3.11. Strong typing throughout: `mypy --strict` must pass on `app/`.
 - Pydantic v2 for all schemas; `StrEnum` over `(str, Enum)`.
 - `ruff check` clean. The repo's ruff rules include `E F I B UP SIM RUF`.
 - `pytest` for everything. Required suites: parser roundtrip, sync idempotency, FTS search, validator. Add a suite alongside each new layer.

@@ -81,17 +81,13 @@ def _delete_recipe(conn: sqlite3.Connection, recipe_id: str) -> None:
     conn.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
 
 
-def _upsert_recipe(
-    conn: sqlite3.Connection, doc: RecipeDocument, path: Path, mtime: float
-) -> None:
+def _upsert_recipe(conn: sqlite3.Connection, doc: RecipeDocument, path: Path, mtime: float) -> None:
     """Replace the recipe row and all child rows. FK cascade clears children."""
     recipe = doc.recipe
     _delete_recipe(conn, recipe.id)
 
     ingredient_names = " ".join(ing.name for ing in recipe.ingredients)
-    frontmatter_json = json.dumps(
-        recipe.model_dump(mode="json", exclude={"body"}), sort_keys=True
-    )
+    frontmatter_json = json.dumps(recipe.model_dump(mode="json", exclude={"body"}), sort_keys=True)
 
     conn.execute(
         """
@@ -160,9 +156,7 @@ def _upsert_recipe(
         "dietary_id",
         recipe.dietary,
     )
-    _link_names(
-        conn, recipe.id, "equipment", "recipe_equipment", "equipment_id", recipe.equipment
-    )
+    _link_names(conn, recipe.id, "equipment", "recipe_equipment", "equipment_id", recipe.equipment)
 
 
 def _link_names(
@@ -203,9 +197,7 @@ def sync_all(recipes_dir: Path, db_path: Path, *, force: bool = False) -> SyncRe
     with connection(db_path) as conn:
         _ensure_schema(conn)
         run_started = _now_iso()
-        cursor = conn.execute(
-            "INSERT INTO sync_runs(started_at) VALUES (?)", (run_started,)
-        )
+        cursor = conn.execute("INSERT INTO sync_runs(started_at) VALUES (?)", (run_started,))
         run_id = cursor.lastrowid
 
         previous = _current_db_state(conn)
@@ -342,7 +334,10 @@ def rebuild_index(recipes_dir: Path, db_path: Path) -> SyncReport:
     """Drop the DB file and re-sync from scratch."""
     if db_path.exists():
         db_path.unlink()
-    for sidecar in (db_path.with_suffix(db_path.suffix + "-wal"), db_path.with_suffix(db_path.suffix + "-shm")):
+    for sidecar in (
+        db_path.with_suffix(db_path.suffix + "-wal"),
+        db_path.with_suffix(db_path.suffix + "-shm"),
+    ):
         if sidecar.exists():
             sidecar.unlink()
     return sync_all(recipes_dir, db_path, force=True)
@@ -365,9 +360,7 @@ def validate_all(recipes_dir: Path) -> list[tuple[Path, list[ValidationIssue]]]:
         try:
             _, issues = parse_file(path)
         except Exception as exc:
-            issues = [
-                ValidationIssue(IssueLevel.ERROR, "parse.error", str(exc), "")
-            ]
+            issues = [ValidationIssue(IssueLevel.ERROR, "parse.error", str(exc), "")]
         slug_indices.setdefault(path.stem, []).append(len(results))
         results.append((path, issues))
 

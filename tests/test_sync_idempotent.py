@@ -69,9 +69,7 @@ def test_orphan_is_removed(recipes_dir: Path, tmp_db: Path, tmp_path: Path) -> N
         assert row["n"] == 0
 
 
-def test_nested_recipe_is_discovered_and_idempotent(
-    recipes_dir: Path, tmp_db: Path
-) -> None:
+def test_nested_recipe_is_discovered_and_idempotent(recipes_dir: Path, tmp_db: Path) -> None:
     """Recipes in subdirectories are synced, and a re-sync is still a no-op."""
     sync.sync_all(recipes_dir, tmp_db)
     with connection(tmp_db) as conn:
@@ -115,10 +113,7 @@ def test_duplicate_slug_across_dirs_errors(tmp_path: Path, tmp_db: Path) -> None
 
     results = sync.validate_all(corpus)
     flagged = {
-        path
-        for path, issues in results
-        for issue in issues
-        if issue.code == "slug.duplicate"
+        path for path, issues in results for issue in issues if issue.code == "slug.duplicate"
     }
     # Both participants are flagged, not just the second.
     assert flagged == {

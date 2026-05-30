@@ -31,9 +31,7 @@ def test_search_library_or_within_facet(populated_db: Path) -> None:
 
 
 def test_search_library_and_across_groups(populated_db: Path) -> None:
-    rows = queries.search_library(
-        populated_db, dietary=["vegan"], cuisines=["indian"]
-    )
+    rows = queries.search_library(populated_db, dietary=["vegan"], cuisines=["indian"])
     slugs = {r.slug for r in rows}
     assert slugs == {"chickpea-spinach-curry"}
 
@@ -112,7 +110,9 @@ def test_facet_counts_reflect_other_filters(populated_db: Path) -> None:
     unfiltered = {fc.name: fc.count for fc in queries.facet_counts_tags(populated_db)}
     assert "weeknight" in unfiltered
     # Filter to indian; weeknight count should drop (only chickpea curry has it).
-    indian = {fc.name: fc.count for fc in queries.facet_counts_tags(populated_db, cuisines=["indian"])}
+    indian = {
+        fc.name: fc.count for fc in queries.facet_counts_tags(populated_db, cuisines=["indian"])
+    }
     assert indian.get("weeknight", 0) == 1
 
 
