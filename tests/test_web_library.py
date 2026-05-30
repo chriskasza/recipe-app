@@ -135,5 +135,5 @@ def test_pagination_filter_change_does_not_carry_page(
     # page 1. Prev/Next inject `page` via hx-vals only on the pagination links.
     page2 = client.get("/search", params={"sort": "title", "page": 2}).text
     assert 'name="page"' not in page2
-    assert 'hx-vals=\'{"page": 1}\'' in page2  # Prev → page 1
-    assert 'hx-vals=\'{"page": 3}\'' in page2  # Next → page 3
+    assert "hx-vals='{\"page\": 1}'" in page2  # Prev → page 1
+    assert "hx-vals='{\"page\": 3}'" in page2  # Next → page 3
