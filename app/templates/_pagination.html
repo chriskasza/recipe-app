@@ -1,0 +1,26 @@
+{% if pagination.total_pages > 1 %}
+{# Prev/Next carry the current filters (#filters + #sortSelect) and set the
+   target page via hx-vals. The filter form itself never sends `page`, so any
+   facet/query/sort change resets to page 1. #}
+<nav class="pagination no-print" aria-label="Pagination">
+  {% if pagination.has_prev %}
+  <a href="#" role="button" class="page-prev"
+     hx-get="/search" hx-target="#results" hx-swap="innerHTML"
+     hx-include="#filters,#sortSelect" hx-push-url="true"
+     hx-vals='{"page": {{ pagination.page - 1 }}}'>← Prev</a>
+  {% else %}
+  <span class="page-prev disabled" aria-disabled="true">← Prev</span>
+  {% endif %}
+
+  <span class="page-info">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
+
+  {% if pagination.has_next %}
+  <a href="#" role="button" class="page-next"
+     hx-get="/search" hx-target="#results" hx-swap="innerHTML"
+     hx-include="#filters,#sortSelect" hx-push-url="true"
+     hx-vals='{"page": {{ pagination.page + 1 }}}'>Next →</a>
+  {% else %}
+  <span class="page-next disabled" aria-disabled="true">Next →</span>
+  {% endif %}
+</nav>
+{% endif %}
