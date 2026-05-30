@@ -42,7 +42,7 @@ This project is a modular system on one core (a Markdown recipe corpus). See [`d
   - `crud.py` — `GET/POST /new`, `GET/POST /r/{slug}/edit`, `POST /r/{slug}/archive|unarchive`. All writes call `_write_and_sync` which restores the original file on `sync_one` failure.
 - `app/templates/` — `base.html` (Pico.css + HTMX + Alpine via pinned CDN versions), `index.html`, `_facets.html`, `_results.html`, `_search_response.html` (OOB wrapper for `/search`), `recipe.html`, `edit.html` + `_form.html` (shared form partial for new/edit).
 - `app/static/style.css` — card grid, chips, `@media print` rules. Pico.css covers the rest of the chrome.
-- `app/importer/` — URL → canonical draft (Stage 5, not yet created).
+- `app/importer/` — payload → canonical draft. `draft.py` (`DraftPayload` Pydantic models + `build_draft`/`render_markdown`/`to_report`) backs the `recipes build-draft` CLI command: it renders a JSON payload through the canonical pipeline (ULID, slug, timestamps, parse + validate, serializer roundtrip check) and writes `RECIPES_DIR/_drafts/<slug>.md`. The `recipe-from-url` skill does the page fetch + field extraction and feeds the payload in. Deterministic in-app URL fetch/JSON-LD extraction (Stage 5 `import-url`) is still future work.
 - `app/ai/` — `LLMProvider` protocol + Ollama impl + retrieval/grounding (Stage 7, not yet created).
 - `app/cli.py` — operator surface (Typer): `validate`, `sync`, `rebuild-index`, `search`, `show`, `doctor`, `run-dev`.
 - `app/config.py` — env-driven paths (`RECIPES_DIR`, `DATA_DIR`).

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import sys
-from typing import Annotated
+from pathlib import Path
+from typing import Annotated, Any, NoReturn
 
 import typer
+from pydantic import ValidationError
 from rich.console import Console
 from rich.table import Table
 
@@ -13,6 +16,7 @@ from app import __version__
 from app.config import load_settings
 from app.core.validator import IssueLevel
 from app.db import queries, sync
+from app.importer.draft import DraftPayload, DraftResult, build_draft, to_report
 
 app = typer.Typer(help="Recipe app operator CLI.", no_args_is_help=True)
 console = Console()
@@ -149,6 +153,83 @@ def show(slug: str) -> None:
     for ing in ingredients:
         mark = " (optional)" if ing.optional else ""
         console.print(f"  • {ing.original_text}{mark}")
+
+
+@app.command("build-draft")
+def build_draft_command(
+    payload_file: Annotated[
+        Path | None,
+        typer.Argument(metavar="PAYLOAD", help="JSON payload file; reads stdin when omitted."),
+    ] = None,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Emit the machine-readable JSON report.")
+    ] = False,
+) -> None:
+    """Write a recipe draft from a JSON payload to RECIPES_DIR/_drafts/<slug>.md.
+
+    The payload describes one recipe (the recipe-from-url skill builds it from a fetched
+    page); this command renders it through the canonical pipeline and writes a validated,
+    byte-stable draft for review.
+    """
+    raw = payload_file.read_text(encoding="utf-8") if payload_file is not None else sys.stdin.read()
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        _emit_draft_error({"status": "error", "stage": "json", "message": str(exc)}, json_output)
+
+    try:
+        payload = DraftPayload.model_validate(data)
+    except ValidationError as exc:
+        _emit_draft_error({"status": "error", "stage": "build", "message": str(exc)}, json_output)
+
+    settings = load_settings()
+    result = build_draft(payload, settings.recipes_dir)
+    report = to_report(result)
+
+    display_path = _relativize(result.path) if result.path is not None else None
+    if display_path is not None:
+        report["path"] = display_path
+
+    if json_output:
+        typer.echo(json.dumps(report, indent=2))
+    else:
+        _print_draft_human(result, display_path)
+
+    if not result.ok:
+        raise typer.Exit(code=1)
+
+
+def _emit_draft_error(report: dict[str, Any], json_output: bool) -> NoReturn:
+    if json_output:
+        typer.echo(json.dumps(report, indent=2))
+    else:
+        console.print(f"[red]✗ {report['stage']}: {report.get('message', '')}[/red]")
+    raise typer.Exit(code=1)
+
+
+def _relativize(path_str: str) -> str:
+    """Show the draft path relative to the working dir when possible, else absolute."""
+    path = Path(path_str)
+    try:
+        return str(path.relative_to(Path.cwd()))
+    except ValueError:
+        return path_str
+
+
+def _print_draft_human(result: DraftResult, display_path: str | None) -> None:
+    if result.ok:
+        console.print(f"[green]✓[/green] wrote draft {display_path}")
+        console.print(f"  slug: {result.slug}")
+        console.print(f"  id:   {result.id}")
+        if result.roundtrip_byte_stable is False:
+            console.print("  [yellow]⚠ roundtrip not byte-stable[/yellow]")
+    else:
+        console.print(f"[red]✗ {result.stage}: {result.message or ''}[/red]")
+        for err in result.errors:
+            console.print(f"  [red]{err}[/red]")
+    for warning in result.warnings:
+        console.print(f"  [yellow]⚠ {warning}[/yellow]")
 
 
 @app.command("run-dev")
