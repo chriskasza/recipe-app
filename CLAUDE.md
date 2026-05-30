@@ -23,6 +23,7 @@ This project is a modular system on one core (a Markdown recipe corpus). See [`d
 - `ruff check` clean. The repo's ruff rules include `E F I B UP SIM RUF`.
 - `pytest` for everything. Required suites: parser roundtrip, sync idempotency, FTS search, validator. Add a suite alongside each new layer.
 - Dependencies declared in `pyproject.toml` (no `requirements.txt`). Dev deps in the `[dev]` optional group.
+- Run tools via `.venv/bin/` directly (e.g. `.venv/bin/pytest`, `.venv/bin/mypy`, `.venv/bin/ruff`). Never call them as `python -m <tool>` or `python pytest ...`.
 
 ## Code style
 
