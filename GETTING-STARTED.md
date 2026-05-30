@@ -13,12 +13,12 @@ software.
 
 - A directory of recipe files for `$RECIPES_DIR` (can start empty).
 - **Docker path:** Docker + Docker Compose, and a GitHub account with access to the private image.
-- **Local dev path:** Python 3.12 and a clone of this repo.
+- **Local dev path:** Python 3.11 and a clone of this repo.
 
 ## Quick start — local dev ✅
 
 ```bash
-python3.12 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 

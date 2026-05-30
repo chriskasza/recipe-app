@@ -37,7 +37,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the module map and decisi
 
 ## Stack
 
-- Python 3.12 + FastAPI + Jinja2
+- Python 3.11 + FastAPI + Jinja2
 - Pydantic v2, `mypy --strict`, `ruff`
 - SQLite + FTS5
 - HTMX + Alpine.js + Pico.css (via CDN) for the UI
@@ -61,7 +61,7 @@ See [`TODO.md`](TODO.md) for the full roadmap and [`docs/architecture.md`](docs/
 
 ```bash
 # Create a venv and install dev deps
-python3.12 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
