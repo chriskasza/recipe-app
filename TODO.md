@@ -207,15 +207,17 @@ The "simple renderer": corpus → static HTML, no DB, no running service.
 
 ## URL importer
 
-Interim today: the host-side `recipe-from-url` skill writes drafts to `recipes/_drafts/` via the
-canonical pipeline (see `README.md` / `GETTING-STARTED.md`). The in-app module below is still planned.
+The **write half** has landed in-app: `recipes build-draft` (`app/importer/draft.py`) takes a JSON
+payload and writes a validated, byte-stable draft to `recipes/_drafts/<slug>.md`. The `recipe-from-url`
+skill now feeds its extracted payload to that command instead of a bundled script. Still planned is the
+**extraction half** — fetching and parsing the URL deterministically so the command can take a `<url>`:
 
 - `httpx` fetcher with timeout + UA.
 - JSON-LD `Recipe` extractor (handles the majority of sites).
 - HTML heuristic fallback.
-- `app/importer/pipeline.py` returns a draft `Recipe` model; UI presents an editable form before saving.
+- An extraction step that produces a `DraftPayload` (reuse `app/importer/draft.py` to write); UI presents an editable form before saving.
 - Drafts written to `recipes/_drafts/`; only "Save" moves them into the canonical corpus.
-- `recipes import-url <url>` CLI verb.
+- `recipes import-url <url>` CLI verb (build-draft + extraction).
 - Fixture-based tests covering at least 2 site formats.
 
 ## Meal planner
