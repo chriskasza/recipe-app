@@ -1,5 +1,7 @@
 # recipe-app
 
+[![CI](https://github.com/chriskasza/recipe-app/actions/workflows/ci.yml/badge.svg)](https://github.com/chriskasza/recipe-app/actions/workflows/ci.yml)
+
 A personal recipe management system, built as **optional modules layered on one durable core**: a
 repository of Markdown recipe files. **The Markdown files are the only source of truth.** Everything
 else — the SQLite mirror, the FTS5 index, the web UI, the REST API, the static-site generator, the
@@ -65,10 +67,12 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Run tests / lint / types
-pytest                    # 68 tests
-ruff check
+# Run tests / lint / types (mirrors CI gates)
+ruff check .
+ruff format --check .
 mypy --strict app/
+RECIPES_DIR=tests/fixtures/recipes recipes validate
+pytest
 
 # Populate ./recipes/ with some content (e.g. via the recipe-from-url skill),
 # then sync into SQLite and start the dev server
