@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -20,6 +21,10 @@ SortParam = Literal["relevance", "recent", "time", "title"]
 # mean "no bound": min at the floor or max at the ceiling removes that side of
 # the filter, so recipes with no time or longer than the ceiling can show.
 TIME_CEILING = 180
+
+# Recipes per page in the library grid. Referenced as a module global so it is
+# the single source of truth (and overridable in tests).
+PAGE_SIZE = 24
 
 
 def _resolve_sort(sort: SortParam | None, query: str | None) -> queries.SortKey:
@@ -40,6 +45,7 @@ def _gather_view_state(
     min_minutes: int | None,
     favorites_only: bool,
     sort: queries.SortKey,
+    page: int,
 ) -> dict[str, object]:
     """Run the library + facet queries and bundle them for the templates."""
     # Slider extremes are "no bound" — drop them so no-time / very-long recipes
@@ -49,7 +55,8 @@ def _gather_view_state(
     if max_minutes is not None and max_minutes >= TIME_CEILING:
         max_minutes = None
 
-    results = queries.search_library(
+    offset = (page - 1) * PAGE_SIZE
+    search_page = queries.search_library(
         db_path,
         query=query,
         tags=tags,
@@ -60,7 +67,22 @@ def _gather_view_state(
         min_minutes=min_minutes,
         favorites_only=favorites_only,
         sort=sort,
+        limit=PAGE_SIZE,
+        offset=offset,
     )
+    results = search_page.rows
+    total = search_page.total
+    total_pages = max(1, math.ceil(total / PAGE_SIZE))
+    pagination = {
+        "page": page,
+        "total_pages": total_pages,
+        "total": total,
+        "page_size": PAGE_SIZE,
+        "start": offset + 1 if results else 0,
+        "end": offset + len(results),
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+    }
     facets = {
         "tags": queries.facet_counts_tags(
             db_path,
@@ -118,7 +140,12 @@ def _gather_view_state(
         "favorites_only": favorites_only,
         "sort": sort,
     }
-    return {"results": results, "facets": facets, "selected": selected}
+    return {
+        "results": results,
+        "facets": facets,
+        "selected": selected,
+        "pagination": pagination,
+    }
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -135,6 +162,7 @@ def library_page(
     min_minutes: Annotated[int | None, Query(ge=0, le=600)] = None,
     favorite: Annotated[bool, Query()] = False,
     sort: Annotated[SortParam | None, Query()] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
 ) -> HTMLResponse:
     resolved_sort = _resolve_sort(sort, q)
     ctx = _gather_view_state(
@@ -148,6 +176,7 @@ def library_page(
         min_minutes=min_minutes,
         favorites_only=favorite,
         sort=resolved_sort,
+        page=page,
     )
     return templates.TemplateResponse(request, "index.html", ctx)
 
@@ -166,6 +195,7 @@ def library_search(
     min_minutes: Annotated[int | None, Query(ge=0, le=600)] = None,
     favorite: Annotated[bool, Query()] = False,
     sort: Annotated[SortParam | None, Query()] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
 ) -> HTMLResponse:
     resolved_sort = _resolve_sort(sort, q)
     ctx = _gather_view_state(
@@ -179,5 +209,6 @@ def library_search(
         min_minutes=min_minutes,
         favorites_only=favorite,
         sort=resolved_sort,
+        page=page,
     )
     return templates.TemplateResponse(request, "_search_response.html", ctx)

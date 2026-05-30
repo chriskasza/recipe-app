@@ -8,7 +8,13 @@
 ] %}
 
 <header class="results-header">
-  <p class="count"><b>{{ results | length }}</b> recipe{{ '' if results | length == 1 else 's' }}</p>
+  {% if pagination.total == 0 %}
+    <p class="count">No recipes</p>
+  {% elif pagination.total <= pagination.page_size %}
+    <p class="count"><b>{{ pagination.total }}</b> recipe{{ '' if pagination.total == 1 else 's' }}</p>
+  {% else %}
+    <p class="count">Showing <b>{{ pagination.start }}–{{ pagination.end }}</b> of {{ pagination.total }} recipes</p>
+  {% endif %}
 </header>
 
 {# Active-filter chips. The ✕ unchecks the matching control in #filters and
@@ -69,4 +75,5 @@
   </article>
   {% endfor %}
 </div>
+{% include "_pagination.html" %}
 {% endif %}

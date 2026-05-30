@@ -60,6 +60,14 @@ class LibraryRow:
 
 
 @dataclass(frozen=True)
+class SearchPage:
+    """A page of library rows plus the total count of all matching rows."""
+
+    rows: list[LibraryRow]
+    total: int  # total matching rows, ignoring limit/offset
+
+
+@dataclass(frozen=True)
 class FacetCount:
     name: str
     count: int
@@ -305,8 +313,13 @@ def search_library(
     favorites_only: bool = False,
     sort: SortKey = "recent",
     limit: int = 100,
-) -> list[LibraryRow]:
-    """Library search combining FTS + facet filters + sort."""
+    offset: int = 0,
+) -> SearchPage:
+    """Library search combining FTS + facet filters + sort.
+
+    Returns the requested page of rows plus the total count of all matching
+    rows (ignoring ``limit``/``offset``) so callers can render pagination.
+    """
     tags = tags or []
     cuisines = cuisines or []
     meal_types = meal_types or []
@@ -343,6 +356,8 @@ def search_library(
         "WHERE rd.recipe_id = r.id) AS dietary_names",
         "(SELECT GROUP_CONCAT(m.name, '|') FROM recipe_meal_types rm JOIN meal_types m ON m.id = rm.meal_type_id "
         "WHERE rm.recipe_id = r.id) AS meal_type_names",
+        # Total matching rows regardless of LIMIT/OFFSET, for pagination.
+        "COUNT(*) OVER () AS total_count",
     ]
 
     sort_sql = {
@@ -361,20 +376,22 @@ def search_library(
             "ON fts.rowid = r.rowid "
             "WHERE " + " AND ".join(where) + " "
             "ORDER BY " + sort_sql + " "
-            "LIMIT ?"
+            "LIMIT ? OFFSET ?"
         )
         sql_params.append(_fts_match_query(query or ""))
         sql_params.extend(params)
         sql_params.append(limit)
+        sql_params.append(offset)
     else:
         sql = (
             "SELECT " + ", ".join(select_cols) + " FROM recipes r "
             "WHERE " + " AND ".join(where) + " "
             "ORDER BY " + sort_sql + " "
-            "LIMIT ?"
+            "LIMIT ? OFFSET ?"
         )
         sql_params.extend(params)
         sql_params.append(limit)
+        sql_params.append(offset)
 
     with connection(db_path) as conn:
         rows = conn.execute(sql, sql_params).fetchall()
@@ -384,7 +401,8 @@ def search_library(
             return ()
         return tuple(sorted(str(value).split("|")))
 
-    return [
+    total = int(rows[0]["total_count"]) if rows else 0
+    library_rows = [
         LibraryRow(
             id=str(r["id"]),
             slug=str(r["slug"]),
@@ -401,6 +419,7 @@ def search_library(
         )
         for r in rows
     ]
+    return SearchPage(rows=library_rows, total=total)
 
 
 def _hero_path(frontmatter_json: object) -> str | None:
