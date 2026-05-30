@@ -118,6 +118,27 @@ stone/rose palette, light/dark/auto), and added the data the design needed:
 React SPA still deferred — needs Stage M3 (REST API) then M4 (SPA scaffold); the same wireframes
 port directly once those exist.
 
+## Stage M2 — Hierarchical corpus support ✅ (2026-05-29)
+
+Subdirectories are now honored as organization-only; discovery recurses the tree.
+
+- Discovery: `app/db/sync.py::_iter_recipe_files` uses `rglob("*.md")`, skipping the `_drafts/`
+  and `images/` helper dirs via a shared `EXCLUDED_DIRS` frozenset. `app/cli.py doctor` reuses the
+  same iterator for its count.
+- Global slug-uniqueness: `sync_all` reports a duplicate-slug error and skips the second file so the
+  DB keeps one slug→path mapping; `validate_all` emits a `slug.duplicate` ERROR. The per-file
+  `slug == stem` invariant is unchanged.
+- Write path: `app/web/forms.py::find_recipe_file` resolves a slug to its file anywhere in the tree
+  (`slug_in_use` is now global). `crud.py` edit/edit_submit/archive/favorite resolve via the tree and
+  rewrite in place, preserving the file's subdirectory.
+- New recipes: optional `folder` field on the new-recipe form, validated by `resolve_new_recipe_path`
+  (rejects absolute/`..`/reserved-dir paths, traversal-guarded), with `mkdir(parents=True)` on write.
+- Docs: dropped the flat-only caveat in `docs/managing-recipes.md`; softened the path line in
+  `docs/recipe-format.md`; updated `CLAUDE.md`.
+- Tests: nested fixture `tests/fixtures/recipes/breakfast/seedy-overnight-oats.md`; roundtrip +
+  idempotency helpers now recurse; new nested-discovery, duplicate-slug, and CRUD folder/subdir cases
+  (`test_sync_idempotent.py`, `test_web_crud.py`); `crud_recipes_dir` fixture copies recursively.
+
 ---
 
 # Modularization track
@@ -139,21 +160,6 @@ Make modules selectable without changing the default single-service behavior.
 - Update `GETTING-STARTED.md` to flip the toggling docs from "Planned" to "Available now".
 - Verify: existing single-service run is unchanged; a lean `pip install -e ".[core]"` imports
   `app.core` without FastAPI present.
-
-## Stage M2 — Hierarchical corpus support
-
-Honor subdirectories as organization-only (slug stays the filename stem; URLs stable).
-
-- Discovery: `recipes_dir.glob("*.md")` → `recipes_dir.rglob("**/*.md")` in `app/db/sync.py` and
-  `app/cli.py` (and the `doctor` count). Exclude `_drafts/` and `images/` helper directories.
-- Global slug-uniqueness check across the whole tree (two files with the same stem in different
-  folders is an error, surfaced by `validate` and blocked at write time).
-- CRUD: writes preserve the file's existing subdirectory; new recipes may target a folder. Slug →
-  path lookup must search the tree, not assume `recipes_dir/{slug}.md`
-  (`app/web/crud.py`, `app/web/forms.py::slug_in_use`).
-- Update `docs/recipe-format.md` (the "`recipes/<slug>.md`" / "must equal the filename stem" lines)
-  and `docs/managing-recipes.md` to drop the flat-only caveat.
-- Tests: sync idempotency + parser roundtrip over a nested fixture layout; slug-collision error.
 
 ## Stage M3 — REST/JSON API module
 

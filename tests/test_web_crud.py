@@ -469,3 +469,97 @@ def test_sync_idempotent_after_new(
     report = sync.sync_all(crud_recipes_dir, crud_db)
     assert not report.errors
     assert report.files_changed == 0
+
+
+# ---------------------------------------------------------------------------
+# Hierarchical corpus (Stage M2) — folders & subdir resolution
+# ---------------------------------------------------------------------------
+
+
+def test_new_post_into_folder(
+    crud_client: TestClient, crud_recipes_dir: Path
+) -> None:
+    """A new recipe with a folder lands in that subdir and /r/{slug} resolves."""
+    form = _new_form(title="Folder Pasta")
+    form["folder"] = "dinner/quick"
+    resp = crud_client.post("/new", data=form, follow_redirects=False)
+    assert resp.status_code == 303
+    slug = resp.headers["location"].removeprefix("/r/")
+
+    nested = crud_recipes_dir / "dinner" / "quick" / f"{slug}.md"
+    assert nested.is_file(), f"expected {nested} to exist"
+    assert not (crud_recipes_dir / f"{slug}.md").exists()
+
+    detail = crud_client.get(f"/r/{slug}")
+    assert detail.status_code == 200
+    assert "Folder Pasta" in detail.text
+
+
+@pytest.mark.parametrize("folder", ["../escape", "/abs/path", "_drafts", "images/sub"])
+def test_new_post_rejects_bad_folder(
+    crud_client: TestClient, crud_recipes_dir: Path, folder: str
+) -> None:
+    form = _new_form(title="Bad Folder")
+    form["folder"] = folder
+    resp = crud_client.post("/new", data=form)
+    assert resp.status_code == 200
+    assert "folder" in resp.text.lower()
+    # Nothing written anywhere in the tree.
+    assert not list(crud_recipes_dir.rglob("bad-folder.md"))
+
+
+def _seed_nested_recipe(crud_recipes_dir: Path, crud_db: Path) -> str:
+    """Move the seeded overnight-oats recipe into a subdir and re-sync. Returns slug."""
+    from app.db import sync
+
+    src = crud_recipes_dir / "overnight-oats.md"
+    dest_dir = crud_recipes_dir / "breakfast"
+    dest_dir.mkdir(exist_ok=True)
+    dest = dest_dir / "overnight-oats.md"
+    dest.write_text(src.read_text())
+    src.unlink()
+    report = sync.rebuild_index(crud_recipes_dir, crud_db)
+    assert not report.errors, report.errors
+    return "overnight-oats"
+
+
+def test_edit_recipe_in_subdir_rewrites_in_place(
+    crud_client: TestClient, crud_recipes_dir: Path, crud_db: Path
+) -> None:
+    slug = _seed_nested_recipe(crud_recipes_dir, crud_db)
+    nested = crud_recipes_dir / "breakfast" / f"{slug}.md"
+
+    edit_form = crud_client.get(f"/r/{slug}/edit")
+    assert edit_form.status_code == 200
+
+    form = _new_form(title="Overnight Oats", summary="Edited in place")
+    resp = crud_client.post(f"/r/{slug}/edit", data=form, follow_redirects=False)
+    assert resp.status_code == 303
+    # Still in the subdir, not duplicated at top level.
+    assert nested.is_file()
+    assert not (crud_recipes_dir / f"{slug}.md").exists()
+    assert "Edited in place" in nested.read_text()
+
+
+def test_favorite_recipe_in_subdir(
+    crud_client: TestClient, crud_recipes_dir: Path, crud_db: Path
+) -> None:
+    slug = _seed_nested_recipe(crud_recipes_dir, crud_db)
+    nested = crud_recipes_dir / "breakfast" / f"{slug}.md"
+
+    resp = crud_client.post(f"/r/{slug}/favorite", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "favorite: true" in nested.read_text()
+
+
+def test_new_post_slug_collision_across_folders(
+    crud_client: TestClient, crud_recipes_dir: Path, crud_db: Path
+) -> None:
+    """A new slug colliding with a recipe in another folder is rejected."""
+    _seed_nested_recipe(crud_recipes_dir, crud_db)
+    form = _new_form(title="Overnight Oats")
+    form["folder"] = "sides"
+    resp = crud_client.post("/new", data=form)
+    assert resp.status_code == 200
+    assert "already exists" in resp.text.lower()
+    assert not (crud_recipes_dir / "sides").exists()

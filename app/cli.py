@@ -23,7 +23,7 @@ def doctor() -> None:
     """Print runtime versions and counts so we can confirm the install."""
     settings = load_settings()
     recipe_count = (
-        sum(1 for _ in settings.recipes_dir.glob("*.md"))
+        sum(1 for _ in sync._iter_recipe_files(settings.recipes_dir))
         if settings.recipes_dir.exists()
         else 0
     )

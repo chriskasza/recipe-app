@@ -57,8 +57,11 @@ def crud_recipes_dir(recipes_dir: Path, tmp_path: Path) -> Path:
     """A writable temp dir seeded with a copy of the fixture corpus."""
     dest = tmp_path / "recipes"
     dest.mkdir()
-    for src in recipes_dir.glob("*.md"):
-        shutil.copy2(src, dest / src.name)
+    for src in recipes_dir.rglob("*.md"):
+        rel = src.relative_to(recipes_dir)
+        dest_path = dest / rel
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest_path)
     return dest
 
 

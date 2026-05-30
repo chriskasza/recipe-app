@@ -18,6 +18,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from app.core.ids import new_ulid
 from app.core.serializer import _yaml
 from app.core.validator import IssueLevel, ValidationIssue
+from app.db.sync import EXCLUDED_DIRS
 
 
 @dataclass
@@ -38,6 +39,7 @@ class FormData:
     source_attribution: str = ""
     image_url: str = ""
     favorite: bool = False
+    folder: str = ""
     ingredients_yaml: str = ""
     body: str = ""
 
@@ -59,6 +61,7 @@ class FormData:
             "source_attribution": self.source_attribution,
             "image_url": self.image_url,
             "favorite": self.favorite,
+            "folder": self.folder,
             "ingredients_yaml": self.ingredients_yaml,
             "body": self.body,
         }
@@ -91,14 +94,64 @@ def parse_form(raw: Any) -> FormData:
         source_attribution=get("source_attribution"),
         image_url=get("image_url"),
         favorite=bool(raw.get("favorite")),
+        folder=get("folder"),
         # No strip: preserve leading/trailing newlines in multi-line fields
         ingredients_yaml=raw.get("ingredients_yaml") or "",
         body=raw.get("body") or "",
     )
 
 
+def find_recipe_file(recipes_dir: Path, slug: str) -> Path | None:
+    """Locate the single .md file whose stem == slug, anywhere in the tree.
+
+    Folders are organization-only, so a recipe may live in any subdirectory.
+    Helper directories (drafts, image sidecars) are skipped. Returns None when
+    no matching file exists.
+    """
+    if not slug:
+        return None
+    for path in sorted(recipes_dir.rglob(f"{slug}.md")):
+        if EXCLUDED_DIRS.isdisjoint(path.relative_to(recipes_dir).parts):
+            return path
+    return None
+
+
 def slug_in_use(recipes_dir: Path, slug: str) -> bool:
-    return slug != "" and (recipes_dir / f"{slug}.md").exists()
+    return find_recipe_file(recipes_dir, slug) is not None
+
+
+def resolve_new_recipe_path(
+    recipes_dir: Path, slug: str, folder: str
+) -> tuple[Path | None, ValidationIssue | None]:
+    """Resolve the target file path for a new recipe under an optional folder.
+
+    The folder is a free-text relative path. We reject absolute paths, ``..``
+    traversal, and the reserved helper directories, and confirm the resolved
+    file stays inside ``recipes_dir`` (mirrors the ``/media`` traversal guard).
+    Returns ``(path, None)`` on success or ``(None, issue)`` on a bad folder.
+    """
+
+    def bad(message: str) -> tuple[None, ValidationIssue]:
+        return None, ValidationIssue(IssueLevel.ERROR, "folder.invalid", message, "folder")
+
+    rel = folder.strip()
+    if not rel:
+        return recipes_dir / f"{slug}.md", None
+
+    candidate = Path(rel)
+    if candidate.is_absolute():
+        return bad("Folder must be a relative path")
+    parts = candidate.parts
+    if ".." in parts:
+        return bad("Folder must not contain '..'")
+    if not EXCLUDED_DIRS.isdisjoint(parts):
+        return bad(f"Folder must not use a reserved directory ({', '.join(sorted(EXCLUDED_DIRS))})")
+
+    base = recipes_dir.resolve()
+    target = (base / candidate / f"{slug}.md").resolve()
+    if base not in target.parents:
+        return bad("Folder must stay inside the recipes directory")
+    return target, None
 
 
 def _parse_int(value: str) -> int | None:

@@ -24,7 +24,10 @@ from app.core.parser import ParseError, parse_file
 from app.core.validator import ValidationIssue, has_errors
 from app.db.connection import connection, init_schema, schema_present
 
-DRAFTS_DIR_NAME = "_drafts"
+# Helper directories that live inside the corpus tree but never hold recipe
+# files: drafts staged by the importer, and image sidecars. Discovery skips any
+# path that descends through one of these.
+EXCLUDED_DIRS = frozenset({"_drafts", "images"})
 
 
 @dataclass
@@ -50,8 +53,8 @@ class SyncReport:
 
 
 def _iter_recipe_files(recipes_dir: Path) -> Iterable[Path]:
-    for path in sorted(recipes_dir.glob("*.md")):
-        if DRAFTS_DIR_NAME in path.parts:
+    for path in sorted(recipes_dir.rglob("*.md")):
+        if not EXCLUDED_DIRS.isdisjoint(path.relative_to(recipes_dir).parts):
             continue
         yield path
 
@@ -201,10 +204,24 @@ def sync_all(recipes_dir: Path, db_path: Path, *, force: bool = False) -> SyncRe
 
         previous = _current_db_state(conn)
         seen_ids: set[str] = set()
+        seen_slugs: dict[str, Path] = {}
 
         for path in _iter_recipe_files(recipes_dir):
             report.files_seen += 1
             result = SyncFileResult(path=path)
+
+            # Slug is the filename stem and must be globally unique across the
+            # tree. A second file with the same stem is ambiguous — skip it so
+            # the DB never holds a stale slug→path mapping.
+            slug = path.stem
+            first = seen_slugs.get(slug)
+            if first is not None:
+                msg = f"duplicate slug {slug!r}: {first} and {path}"
+                report.errors.append(msg)
+                result.skipped_reason = "duplicate slug"
+                report.file_results.append(result)
+                continue
+            seen_slugs[slug] = path
 
             try:
                 doc, issues = parse_file(path)
@@ -334,7 +351,26 @@ def validate_all(recipes_dir: Path) -> list[tuple[Path, list[ValidationIssue]]]:
     from app.core.validator import IssueLevel  # local import to avoid cycle at module load
 
     results: list[tuple[Path, list[ValidationIssue]]] = []
+    seen_slugs: dict[str, Path] = {}
     for path in _iter_recipe_files(recipes_dir):
+        slug = path.stem
+        first = seen_slugs.get(slug)
+        if first is not None:
+            results.append(
+                (
+                    path,
+                    [
+                        ValidationIssue(
+                            IssueLevel.ERROR,
+                            "slug.duplicate",
+                            f"duplicate slug {slug!r}: also defined at {first}",
+                            "slug",
+                        )
+                    ],
+                )
+            )
+            continue
+        seen_slugs[slug] = path
         try:
             _, issues = parse_file(path)
         except Exception as exc:
