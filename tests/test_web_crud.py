@@ -495,7 +495,23 @@ def test_new_post_into_folder(
     assert "Folder Pasta" in detail.text
 
 
-@pytest.mark.parametrize("folder", ["../escape", "/abs/path", "_drafts", "images/sub"])
+def test_resolve_new_recipe_path_rejects_symlinked_folder(tmp_path: Path) -> None:
+    """A symlinked folder component must not let .resolve() escape the tree."""
+    from app.web.forms import resolve_new_recipe_path
+
+    recipes_dir = tmp_path / "recipes"
+    recipes_dir.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (recipes_dir / "escape").symlink_to(outside, target_is_directory=True)
+
+    path, issue = resolve_new_recipe_path(recipes_dir, "evil", "escape")
+    assert path is None
+    assert issue is not None
+    assert issue.code == "folder.invalid"
+
+
+@pytest.mark.parametrize("folder", ["../escape", "/abs/path", "_drafts", "images", "images/sub"])
 def test_new_post_rejects_bad_folder(
     crud_client: TestClient, crud_recipes_dir: Path, folder: str
 ) -> None:

@@ -10,7 +10,7 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -139,7 +139,9 @@ def resolve_new_recipe_path(
         return recipes_dir / f"{slug}.md", None
 
     candidate = Path(rel)
-    if candidate.is_absolute():
+    # PureWindowsPath catches drive-relative (``C:foo``), UNC (``\\host\share``)
+    # and device (``\\?\``) paths that ``Path.is_absolute`` misses on POSIX.
+    if candidate.is_absolute() or PureWindowsPath(rel).is_absolute():
         return bad("Folder must be a relative path")
     parts = candidate.parts
     if ".." in parts:
@@ -148,6 +150,15 @@ def resolve_new_recipe_path(
         return bad(f"Folder must not use a reserved directory ({', '.join(sorted(EXCLUDED_DIRS))})")
 
     base = recipes_dir.resolve()
+    # ``.resolve()`` follows symlinks, so a symlinked folder component could
+    # canonicalize to a target outside ``base``. Reject any existing component
+    # that is a symlink before trusting the resolved containment check below.
+    probe = base
+    for part in parts:
+        probe = probe / part
+        if probe.is_symlink():
+            return bad("Folder must not traverse a symlink")
+
     target = (base / candidate / f"{slug}.md").resolve()
     if base not in target.parents:
         return bad("Folder must stay inside the recipes directory")
