@@ -18,7 +18,14 @@ from app.core.validator import IssueLevel, ValidationIssue
 from app.core.vocab import DIETARY_FLAGS, MEAL_TYPES
 from app.db import sync as db_sync
 from app.web.deps import get_db_path, get_recipes_dir, get_templates
-from app.web.forms import FormData, build_markdown, parse_form, slug_in_use
+from app.web.forms import (
+    FormData,
+    build_markdown,
+    find_recipe_file,
+    parse_form,
+    resolve_new_recipe_path,
+    slug_in_use,
+)
 
 router = APIRouter()
 
@@ -218,7 +225,23 @@ async def new_submit(
             ),
         )
 
-    path = recipes_dir / f"{slug}.md"
+    path, folder_issue = resolve_new_recipe_path(recipes_dir, slug, form.folder)
+    if folder_issue is not None:
+        errors, warnings = _split_issues([folder_issue])
+        return templates.TemplateResponse(
+            request,
+            "edit.html",
+            _form_ctx(
+                mode="new",
+                form=form.as_dict(),
+                errors=errors,
+                warnings=warnings,
+                action_url="/new",
+                slug=slug,
+            ),
+        )
+    assert path is not None
+    path.parent.mkdir(parents=True, exist_ok=True)
     sync_errors = _write_and_sync(path, text, recipes_dir, db_path)
     if sync_errors:
         error_dicts = [
@@ -248,8 +271,8 @@ def edit_form(
     recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
     templates: Annotated[Jinja2Templates, Depends(get_templates)],
 ) -> HTMLResponse:
-    path = recipes_dir / f"{slug}.md"
-    if not path.is_file():
+    path = find_recipe_file(recipes_dir, slug)
+    if path is None:
         raise HTTPException(status_code=404, detail=f"No recipe file for slug {slug!r}")
     doc, _ = parse_file(path)
     form = _prefill_form(doc)
@@ -276,8 +299,8 @@ async def edit_submit(
     db_path: Annotated[Path, Depends(get_db_path)],
     templates: Annotated[Jinja2Templates, Depends(get_templates)],
 ) -> Response:
-    path = recipes_dir / f"{slug}.md"
-    if not path.is_file():
+    path = find_recipe_file(recipes_dir, slug)
+    if path is None:
         raise HTTPException(status_code=404, detail=f"No recipe file for slug {slug!r}")
 
     existing_doc, _ = parse_file(path)
@@ -401,8 +424,8 @@ def _flip_bool_field(
     """Toggle a boolean frontmatter flag by mutating raw_yaml and re-serializing."""
     if field not in _BOOL_FIELDS:
         raise ValueError(f"field {field!r} is not an allowed boolean frontmatter key")
-    path = recipes_dir / f"{slug}.md"
-    if not path.is_file():
+    path = find_recipe_file(recipes_dir, slug)
+    if path is None:
         raise HTTPException(status_code=404, detail=f"No recipe file for slug {slug!r}")
 
     doc, _ = parse_file(path)

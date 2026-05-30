@@ -52,6 +52,13 @@
       Slug (immutable)
       <input type="text" name="_slug_display" value="{{ slug }}" readonly>
     </label>
+    {% else %}
+    <label>
+      Folder <small>(optional, organization only)</small>
+      <input type="text" name="folder" value="{{ form.folder }}" autocomplete="off"
+             {{ is_invalid("folder") }} placeholder="e.g. dinner, breakfast/quick">
+      {{ field_errors("folder") }}
+    </label>
     {% endif %}
 
     <label>

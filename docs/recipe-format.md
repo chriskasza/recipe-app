@@ -1,6 +1,8 @@
 # Canonical recipe format
 
-A recipe is a single UTF-8 Markdown file at `recipes/<slug>.md` with LF line endings.
+A recipe is a single UTF-8 Markdown file named `<slug>.md` with LF line endings. It may live directly
+under `recipes/` or in any subdirectory (folders are organization-only; the slug, not the path, is the
+recipe's identity). The filename stem must equal the `slug` and be unique across the whole tree.
 
 ```
 ---

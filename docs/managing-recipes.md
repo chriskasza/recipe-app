@@ -45,11 +45,10 @@ is its `slug`; the path is just where the file happens to sit. Moving a recipe b
 **not** change its slug or its `/r/{slug}` URL. (Slugs must still be unique across the whole tree —
 you can't have `dinner/pasta.md` and `lunch/pasta.md`.)
 
-> ⚠️ **Current limitation.** The SQLite-backed app today discovers only **top-level** `recipes/*.md`
-> — it does not yet recurse into subdirectories. Folders are safe for hand-reading and git right
-> now, but the dynamic app (library, search, CRUD) will only pick up nested files once the
-> *Hierarchical corpus support* stage lands (see [`../TODO.md`](../TODO.md)). Until then, keep files
-> you want the app to index at the top level.
+The app discovers recipes **recursively**: files in any subdirectory are indexed by the library,
+search, and CRUD layers (the `_drafts/` and `images/` helper directories are skipped). Because the
+slug must be globally unique, two files with the same stem in different folders is an error — `recipes
+validate` and `recipes sync` will flag it and skip the duplicate.
 
 ## Everyday tasks
 

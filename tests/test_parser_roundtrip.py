@@ -12,19 +12,23 @@ import pytest
 
 from app.core.parser import parse_file
 from app.core.serializer import serialize
+from app.db.sync import _iter_recipe_files
+
+_FIXTURES = Path(__file__).parent / "fixtures" / "recipes"
 
 
-def _recipe_files(recipes_dir: Path) -> list[Path]:
-    return sorted(p for p in recipes_dir.glob("*.md") if not p.name.startswith("_"))
+def _recipe_rel_paths(recipes_dir: Path) -> list[str]:
+    """Relative paths (POSIX) of every discoverable recipe, nested included."""
+    return sorted(p.relative_to(recipes_dir).as_posix() for p in _iter_recipe_files(recipes_dir))
 
 
-@pytest.mark.parametrize("recipe_path_name", [p.name for p in _recipe_files(Path(__file__).parent / "fixtures" / "recipes")])
-def test_roundtrip_byte_identical(recipes_dir: Path, recipe_path_name: str) -> None:
-    path = recipes_dir / recipe_path_name
+@pytest.mark.parametrize("recipe_rel_path", _recipe_rel_paths(_FIXTURES))
+def test_roundtrip_byte_identical(recipes_dir: Path, recipe_rel_path: str) -> None:
+    path = recipes_dir / recipe_rel_path
     original = path.read_text(encoding="utf-8")
     doc, _issues = parse_file(path)
     rendered = serialize(doc)
-    assert rendered == original, f"roundtrip drifted for {recipe_path_name}"
+    assert rendered == original, f"roundtrip drifted for {recipe_rel_path}"
 
 
 def test_parser_returns_typed_recipe(recipes_dir: Path) -> None:

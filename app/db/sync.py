@@ -19,12 +19,21 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.core.constants import EXCLUDED_DIRS
 from app.core.models import RecipeDocument
 from app.core.parser import ParseError, parse_file
 from app.core.validator import ValidationIssue, has_errors
 from app.db.connection import connection, init_schema, schema_present
 
-DRAFTS_DIR_NAME = "_drafts"
+__all__ = [
+    "EXCLUDED_DIRS",
+    "SyncFileResult",
+    "SyncReport",
+    "rebuild_index",
+    "sync_all",
+    "sync_one",
+    "validate_all",
+]
 
 
 @dataclass
@@ -50,8 +59,8 @@ class SyncReport:
 
 
 def _iter_recipe_files(recipes_dir: Path) -> Iterable[Path]:
-    for path in sorted(recipes_dir.glob("*.md")):
-        if DRAFTS_DIR_NAME in path.parts:
+    for path in sorted(recipes_dir.rglob("*.md")):
+        if not EXCLUDED_DIRS.isdisjoint(path.relative_to(recipes_dir).parts):
             continue
         yield path
 
@@ -201,10 +210,24 @@ def sync_all(recipes_dir: Path, db_path: Path, *, force: bool = False) -> SyncRe
 
         previous = _current_db_state(conn)
         seen_ids: set[str] = set()
+        seen_slugs: dict[str, Path] = {}
 
         for path in _iter_recipe_files(recipes_dir):
             report.files_seen += 1
             result = SyncFileResult(path=path)
+
+            # Slug is the filename stem and must be globally unique across the
+            # tree. A second file with the same stem is ambiguous — skip it so
+            # the DB never holds a stale slug→path mapping.
+            slug = path.stem
+            first = seen_slugs.get(slug)
+            if first is not None:
+                msg = f"duplicate slug {slug!r}: {first} and {path}"
+                report.errors.append(msg)
+                result.skipped_reason = "duplicate slug"
+                report.file_results.append(result)
+                continue
+            seen_slugs[slug] = path
 
             try:
                 doc, issues = parse_file(path)
@@ -334,6 +357,10 @@ def validate_all(recipes_dir: Path) -> list[tuple[Path, list[ValidationIssue]]]:
     from app.core.validator import IssueLevel  # local import to avoid cycle at module load
 
     results: list[tuple[Path, list[ValidationIssue]]] = []
+    # slug → indices into ``results`` of every file sharing that stem, so a
+    # duplicate can be flagged on *all* participants (including the first),
+    # not just the later ones.
+    slug_indices: dict[str, list[int]] = {}
     for path in _iter_recipe_files(recipes_dir):
         try:
             _, issues = parse_file(path)
@@ -341,7 +368,23 @@ def validate_all(recipes_dir: Path) -> list[tuple[Path, list[ValidationIssue]]]:
             issues = [
                 ValidationIssue(IssueLevel.ERROR, "parse.error", str(exc), "")
             ]
+        slug_indices.setdefault(path.stem, []).append(len(results))
         results.append((path, issues))
+
+    for slug, indices in slug_indices.items():
+        if len(indices) < 2:
+            continue
+        others = [results[i][0] for i in indices]
+        for idx in indices:
+            siblings = ", ".join(str(p) for p in others if p != results[idx][0])
+            results[idx][1].append(
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    "slug.duplicate",
+                    f"duplicate slug {slug!r}: also defined at {siblings}",
+                    "slug",
+                )
+            )
     return results
 
 

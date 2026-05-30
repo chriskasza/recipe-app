@@ -8,16 +8,20 @@ roundtrip-stable from the moment it hits disk.
 from __future__ import annotations
 
 import io
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
+from app.core.constants import EXCLUDED_DIRS
 from app.core.ids import new_ulid
 from app.core.serializer import _yaml
 from app.core.validator import IssueLevel, ValidationIssue
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -38,6 +42,7 @@ class FormData:
     source_attribution: str = ""
     image_url: str = ""
     favorite: bool = False
+    folder: str = ""
     ingredients_yaml: str = ""
     body: str = ""
 
@@ -59,6 +64,7 @@ class FormData:
             "source_attribution": self.source_attribution,
             "image_url": self.image_url,
             "favorite": self.favorite,
+            "folder": self.folder,
             "ingredients_yaml": self.ingredients_yaml,
             "body": self.body,
         }
@@ -91,14 +97,93 @@ def parse_form(raw: Any) -> FormData:
         source_attribution=get("source_attribution"),
         image_url=get("image_url"),
         favorite=bool(raw.get("favorite")),
+        folder=get("folder"),
         # No strip: preserve leading/trailing newlines in multi-line fields
         ingredients_yaml=raw.get("ingredients_yaml") or "",
         body=raw.get("body") or "",
     )
 
 
+def find_recipe_file(recipes_dir: Path, slug: str) -> Path | None:
+    """Locate the single .md file whose stem == slug, anywhere in the tree.
+
+    Folders are organization-only, so a recipe may live in any subdirectory.
+    Helper directories (drafts, image sidecars) are skipped. Returns None when
+    no matching file exists.
+
+    Slugs are globally unique by invariant (enforced in ``sync_all`` /
+    ``validate_all`` and the ``slug_in_use`` collision check). If two files
+    nonetheless share a stem — a TOCTOU race or out-of-band filesystem edit —
+    we deterministically return the first by sorted path but log a warning so
+    the ambiguity is visible rather than silently resolved.
+    """
+    if not slug:
+        return None
+    matches = [
+        path
+        for path in sorted(recipes_dir.rglob(f"{slug}.md"))
+        if EXCLUDED_DIRS.isdisjoint(path.relative_to(recipes_dir).parts)
+    ]
+    if not matches:
+        return None
+    if len(matches) > 1:
+        logger.warning(
+            "duplicate slug %r resolves to %d files: %s — using %s",
+            slug,
+            len(matches),
+            ", ".join(str(p) for p in matches),
+            matches[0],
+        )
+    return matches[0]
+
+
 def slug_in_use(recipes_dir: Path, slug: str) -> bool:
-    return slug != "" and (recipes_dir / f"{slug}.md").exists()
+    return find_recipe_file(recipes_dir, slug) is not None
+
+
+def resolve_new_recipe_path(
+    recipes_dir: Path, slug: str, folder: str
+) -> tuple[Path | None, ValidationIssue | None]:
+    """Resolve the target file path for a new recipe under an optional folder.
+
+    The folder is a free-text relative path. We reject absolute paths, ``..``
+    traversal, and the reserved helper directories, and confirm the resolved
+    file stays inside ``recipes_dir`` (mirrors the ``/media`` traversal guard).
+    Returns ``(path, None)`` on success or ``(None, issue)`` on a bad folder.
+    """
+
+    def bad(message: str) -> tuple[None, ValidationIssue]:
+        return None, ValidationIssue(IssueLevel.ERROR, "folder.invalid", message, "folder")
+
+    rel = folder.strip()
+    if not rel:
+        return recipes_dir / f"{slug}.md", None
+
+    candidate = Path(rel)
+    # PureWindowsPath catches drive-relative (``C:foo``), UNC (``\\host\share``)
+    # and device (``\\?\``) paths that ``Path.is_absolute`` misses on POSIX.
+    if candidate.is_absolute() or PureWindowsPath(rel).is_absolute():
+        return bad("Folder must be a relative path")
+    parts = candidate.parts
+    if ".." in parts:
+        return bad("Folder must not contain '..'")
+    if not EXCLUDED_DIRS.isdisjoint(parts):
+        return bad(f"Folder must not use a reserved directory ({', '.join(sorted(EXCLUDED_DIRS))})")
+
+    base = recipes_dir.resolve()
+    # ``.resolve()`` follows symlinks, so a symlinked folder component could
+    # canonicalize to a target outside ``base``. Reject any existing component
+    # that is a symlink before trusting the resolved containment check below.
+    probe = base
+    for part in parts:
+        probe = probe / part
+        if probe.is_symlink():
+            return bad("Folder must not traverse a symlink")
+
+    target = (base / candidate / f"{slug}.md").resolve()
+    if base not in target.parents:
+        return bad("Folder must stay inside the recipes directory")
+    return target, None
 
 
 def _parse_int(value: str) -> int | None:
