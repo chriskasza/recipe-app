@@ -41,9 +41,7 @@ def validate_recipe(recipe: Recipe, *, expected_slug: str | None = None) -> list
 
     if not is_ulid(recipe.id):
         issues.append(
-            ValidationIssue(
-                IssueLevel.ERROR, "id.invalid", "id must be a 26-char ULID", "id"
-            )
+            ValidationIssue(IssueLevel.ERROR, "id.invalid", "id must be a 26-char ULID", "id")
         )
 
     if not is_valid_slug(recipe.slug):

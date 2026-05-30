@@ -131,18 +131,14 @@ def test_new_post_empty_title_preserves_summary(crud_client: TestClient) -> None
     assert "Keep this" in resp.text
 
 
-def test_new_post_slug_collision(
-    crud_client: TestClient, crud_recipes_dir: Path
-) -> None:
+def test_new_post_slug_collision(crud_client: TestClient, crud_recipes_dir: Path) -> None:
     # "overnight-oats" already exists in the seeded corpus
     resp = crud_client.post("/new", data=_new_form(title="Overnight Oats"))
     assert resp.status_code == 200
     assert "already exists" in resp.text.lower()
 
 
-def test_new_post_bad_ingredient_yaml(
-    crud_client: TestClient, crud_recipes_dir: Path
-) -> None:
+def test_new_post_bad_ingredient_yaml(crud_client: TestClient, crud_recipes_dir: Path) -> None:
     resp = crud_client.post(
         "/new",
         data=_new_form(title="Bad Pasta", ingredients_yaml="this is not yaml: ["),
@@ -187,9 +183,7 @@ def test_edit_get_unknown_404(crud_client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_edit_post_updates_summary(
-    crud_client: TestClient, crud_recipes_dir: Path
-) -> None:
+def test_edit_post_updates_summary(crud_client: TestClient, crud_recipes_dir: Path) -> None:
     resp = crud_client.get("/r/overnight-oats/edit")
     assert resp.status_code == 200
 
@@ -211,9 +205,7 @@ def test_edit_post_updates_summary(
         "ingredients_yaml": VALID_INGREDIENTS,
         "body": VALID_BODY,
     }
-    resp2 = crud_client.post(
-        "/r/overnight-oats/edit", data=form_data, follow_redirects=False
-    )
+    resp2 = crud_client.post("/r/overnight-oats/edit", data=form_data, follow_redirects=False)
     assert resp2.status_code == 303
 
     md_text = (crud_recipes_dir / "overnight-oats.md").read_text()
@@ -245,9 +237,7 @@ def test_edit_post_preserves_id_and_created_at(
         "ingredients_yaml": VALID_INGREDIENTS,
         "body": VALID_BODY,
     }
-    resp = crud_client.post(
-        "/r/overnight-oats/edit", data=form_data, follow_redirects=False
-    )
+    resp = crud_client.post("/r/overnight-oats/edit", data=form_data, follow_redirects=False)
     assert resp.status_code == 303
 
     updated_doc, _ = parse_file(original_path)
@@ -391,15 +381,15 @@ def test_edit_form_prefills_existing_image(crud_client: TestClient) -> None:
     assert "images/miso-eggplant.jpg" in resp.text
 
 
-def test_edit_preserves_then_clears_image(
-    crud_client: TestClient, crud_recipes_dir: Path
-) -> None:
+def test_edit_preserves_then_clears_image(crud_client: TestClient, crud_recipes_dir: Path) -> None:
     # Create with a hero, then an edit that keeps it preserves images[].
     data = _new_form(title="Keeper")
     data["image_url"] = HERO_URL
-    slug = crud_client.post(
-        "/new", data=data, follow_redirects=False
-    ).headers["location"].removeprefix("/r/")
+    slug = (
+        crud_client.post("/new", data=data, follow_redirects=False)
+        .headers["location"]
+        .removeprefix("/r/")
+    )
 
     keep = _new_form(title="Keeper")
     keep["image_url"] = HERO_URL
@@ -411,7 +401,9 @@ def test_edit_preserves_then_clears_image(
     assert "images:" not in (crud_recipes_dir / f"{slug}.md").read_text()
 
 
-@pytest.mark.parametrize("bad_url", ["javascript:alert(1)", "data:text/html,<h1>hi</h1>", "//evil.com/x.jpg"])
+@pytest.mark.parametrize(
+    "bad_url", ["javascript:alert(1)", "data:text/html,<h1>hi</h1>", "//evil.com/x.jpg"]
+)
 def test_new_post_rejects_invalid_image_url_scheme(crud_client: TestClient, bad_url: str) -> None:
     data = _new_form(title="Bad Image")
     data["image_url"] = bad_url
@@ -420,7 +412,9 @@ def test_new_post_rejects_invalid_image_url_scheme(crud_client: TestClient, bad_
     assert "URL must start with" in resp.text
 
 
-@pytest.mark.parametrize("bad_url", ["javascript:alert(1)", "data:text/html,<h1>hi</h1>", "//evil.com/"])
+@pytest.mark.parametrize(
+    "bad_url", ["javascript:alert(1)", "data:text/html,<h1>hi</h1>", "//evil.com/"]
+)
 def test_new_post_rejects_invalid_source_url_scheme(crud_client: TestClient, bad_url: str) -> None:
     data = _new_form(title="Bad Source")
     data["source_url"] = bad_url
@@ -449,6 +443,7 @@ def test_generated_file_is_roundtrip_stable(
     doc, issues = parse_text(original_text)
     # No errors expected
     from app.core.validator import has_errors
+
     assert not has_errors(issues)
 
     reserialized = serialize(doc)
@@ -476,9 +471,7 @@ def test_sync_idempotent_after_new(
 # ---------------------------------------------------------------------------
 
 
-def test_new_post_into_folder(
-    crud_client: TestClient, crud_recipes_dir: Path
-) -> None:
+def test_new_post_into_folder(crud_client: TestClient, crud_recipes_dir: Path) -> None:
     """A new recipe with a folder lands in that subdir and /r/{slug} resolves."""
     form = _new_form(title="Folder Pasta")
     form["folder"] = "dinner/quick"

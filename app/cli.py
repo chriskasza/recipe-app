@@ -71,7 +71,9 @@ def validate() -> None:
 
 @app.command(name="sync")
 def sync_command(
-    force: Annotated[bool, typer.Option("--force", help="Re-upsert every file regardless of mtime")] = False,
+    force: Annotated[
+        bool, typer.Option("--force", help="Re-upsert every file regardless of mtime")
+    ] = False,
 ) -> None:
     """Sync the corpus into the SQLite mirror."""
     settings = load_settings()

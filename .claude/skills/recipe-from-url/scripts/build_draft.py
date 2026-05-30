@@ -31,10 +31,30 @@ from app.core.parser import ParseError, parse_text  # noqa: E402
 from app.core.serializer import serialize  # noqa: E402
 from app.core.validator import IssueLevel  # noqa: E402
 
-_recipes_base = Path(os.environ["RECIPES_DIR"]) if "RECIPES_DIR" in os.environ else PROJECT_ROOT / "recipes"
+_recipes_base = (
+    Path(os.environ["RECIPES_DIR"]) if "RECIPES_DIR" in os.environ else PROJECT_ROOT / "recipes"
+)
 DRAFTS_DIR = _recipes_base / "_drafts"
 
-_YAML_SPECIAL_PREFIXES = ("-", "?", ":", "[", "{", "!", "&", "*", "|", ">", "'", '"', "%", "@", "`", "#", " ")
+_YAML_SPECIAL_PREFIXES = (
+    "-",
+    "?",
+    ":",
+    "[",
+    "{",
+    "!",
+    "&",
+    "*",
+    "|",
+    ">",
+    "'",
+    '"',
+    "%",
+    "@",
+    "`",
+    "#",
+    " ",
+)
 
 
 def _quote(s: str) -> str:
@@ -82,22 +102,22 @@ def build_markdown(data: dict) -> tuple[str, str]:
     out.append(f"slug: {slug}")
     out.append(f"title: {_quote(title)}")
 
-    if (summary := data.get("summary")):
+    if summary := data.get("summary"):
         out.append(f"summary: {_quote(summary)}")
-    if (cuisine := data.get("cuisine")):
+    if cuisine := data.get("cuisine"):
         out.append(f"cuisine: {_quote(cuisine)}")
-    if (mt := data.get("meal_type")):
+    if mt := data.get("meal_type"):
         out.append(f"meal_type: {_flow_list([str(x) for x in mt])}")
-    if (tags := data.get("tags")):
+    if tags := data.get("tags"):
         out.append(f"tags: {_flow_list([str(x) for x in tags])}")
-    if (dietary := data.get("dietary")):
+    if dietary := data.get("dietary"):
         out.append(f"dietary: {_flow_list([str(x) for x in dietary])}")
 
     for key in ("prep_minutes", "cook_minutes", "total_minutes", "servings"):
         if data.get(key) is not None:
             out.append(f"{key}: {int(data[key])}")
 
-    if (yn := data.get("yield_note")):
+    if yn := data.get("yield_note"):
         out.append(f"yield_note: {_quote(yn)}")
 
     if (source := data.get("source")) and (source.get("url") or source.get("attribution")):
@@ -107,10 +127,10 @@ def build_markdown(data: dict) -> tuple[str, str]:
         if source.get("attribution"):
             out.append(f"  attribution: {_quote(source['attribution'])}")
 
-    if (eq := data.get("equipment")):
+    if eq := data.get("equipment"):
         out.append(f"equipment: {_flow_list([str(x) for x in eq])}")
 
-    if (ings := data.get("ingredients")):
+    if ings := data.get("ingredients"):
         out.append("ingredients:")
         for ing in ings:
             name = ing.get("name")
@@ -121,7 +141,11 @@ def build_markdown(data: dict) -> tuple[str, str]:
             if ing.get("qty") is not None:
                 qty = ing["qty"]
                 # Render integers without decimal point; floats as-is.
-                qty_str = str(int(qty)) if isinstance(qty, (int, float)) and float(qty).is_integer() else str(qty)
+                qty_str = (
+                    str(int(qty))
+                    if isinstance(qty, (int, float)) and float(qty).is_integer()
+                    else str(qty)
+                )
                 out.append(f"    qty: {qty_str}")
             if ing.get("unit"):
                 out.append(f"    unit: {_quote(ing['unit'])}")
@@ -131,14 +155,14 @@ def build_markdown(data: dict) -> tuple[str, str]:
                 out.append("    optional: true")
             out.append(f"    original: {_quote(original)}")
 
-    if (nut := data.get("nutrition")):
+    if nut := data.get("nutrition"):
         out.append("nutrition:")
         for k, v in nut.items():
             if v is None:
                 continue
             out.append(f"  {k}: {v}")
 
-    if (imgs := data.get("images")):
+    if imgs := data.get("images"):
         out.append("images:")
         for img in imgs:
             if not img.get("path"):
@@ -218,6 +242,7 @@ def main() -> None:
     roundtrip_clean = canonical == text
 
     out_path = DRAFTS_DIR / f"{slug}.md"
+
     def _rel(p: Path) -> str:
         try:
             return str(p.relative_to(PROJECT_ROOT))
