@@ -19,15 +19,21 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.core.constants import EXCLUDED_DIRS
 from app.core.models import RecipeDocument
 from app.core.parser import ParseError, parse_file
 from app.core.validator import ValidationIssue, has_errors
 from app.db.connection import connection, init_schema, schema_present
 
-# Helper directories that live inside the corpus tree but never hold recipe
-# files: drafts staged by the importer, and image sidecars. Discovery skips any
-# path that descends through one of these.
-EXCLUDED_DIRS = frozenset({"_drafts", "images"})
+__all__ = [
+    "EXCLUDED_DIRS",
+    "SyncFileResult",
+    "SyncReport",
+    "rebuild_index",
+    "sync_all",
+    "sync_one",
+    "validate_all",
+]
 
 
 @dataclass

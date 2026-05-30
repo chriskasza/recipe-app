@@ -16,10 +16,10 @@ from typing import Any
 
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
+from app.core.constants import EXCLUDED_DIRS
 from app.core.ids import new_ulid
 from app.core.serializer import _yaml
 from app.core.validator import IssueLevel, ValidationIssue
-from app.db.sync import EXCLUDED_DIRS
 
 logger = logging.getLogger(__name__)
 
