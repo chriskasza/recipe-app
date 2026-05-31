@@ -13,14 +13,10 @@ venv/
 htmlcov/
 .coverage
 
-# Derived state (rebuildable — never canonical)
-data/recipes.db
-data/recipes.db-wal
-data/recipes.db-shm
-
-# Auth state (secrets — never commit)
-data/auth.json
-data/.session_secret
+# Runtime state: derived DB (rebuildable) + auth secrets. Never canonical —
+# nothing here is committed except the .gitkeep that preserves the directory.
+data/*
+!data/.gitkeep
 
 # Editor
 .idea/
