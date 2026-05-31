@@ -16,7 +16,7 @@ from app import __version__
 from app.config import load_settings
 from app.core.validator import IssueLevel
 from app.db import queries, sync
-from app.importer.draft import DraftPayload, DraftResult, build_draft, to_report
+from app.importer.save import RecipePayload, SaveResult, save_recipe, to_report
 
 app = typer.Typer(help="Recipe app operator CLI.", no_args_is_help=True)
 console = Console()
@@ -155,8 +155,8 @@ def show(slug: str) -> None:
         console.print(f"  • {ing.original_text}{mark}")
 
 
-@app.command("build-draft")
-def build_draft_command(
+@app.command("save-recipe")
+def save_recipe_command(
     payload_file: Annotated[
         Path | None,
         typer.Argument(metavar="PAYLOAD", help="JSON payload file; reads stdin when omitted."),
@@ -165,26 +165,26 @@ def build_draft_command(
         bool, typer.Option("--json", help="Emit the machine-readable JSON report.")
     ] = False,
 ) -> None:
-    """Write a recipe draft from a JSON payload to RECIPES_DIR/_drafts/<slug>.md.
+    """Write a recipe from a JSON payload straight into RECIPES_DIR/<slug>.md.
 
     The payload describes one recipe (the recipe-from-url skill builds it from a fetched
     page); this command renders it through the canonical pipeline and writes a validated,
-    byte-stable draft for review.
+    byte-stable file into the corpus. Fix any issues afterward from the web UI's edit form.
     """
     raw = payload_file.read_text(encoding="utf-8") if payload_file is not None else sys.stdin.read()
 
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        _emit_draft_error({"status": "error", "stage": "json", "message": str(exc)}, json_output)
+        _emit_save_error({"status": "error", "stage": "json", "message": str(exc)}, json_output)
 
     try:
-        payload = DraftPayload.model_validate(data)
+        payload = RecipePayload.model_validate(data)
     except ValidationError as exc:
-        _emit_draft_error({"status": "error", "stage": "build", "message": str(exc)}, json_output)
+        _emit_save_error({"status": "error", "stage": "build", "message": str(exc)}, json_output)
 
     settings = load_settings()
-    result = build_draft(payload, settings.recipes_dir)
+    result = save_recipe(payload, settings.recipes_dir)
     report = to_report(result)
 
     display_path = _relativize(result.path) if result.path is not None else None
@@ -194,13 +194,13 @@ def build_draft_command(
     if json_output:
         typer.echo(json.dumps(report, indent=2))
     else:
-        _print_draft_human(result, display_path)
+        _print_save_human(result, display_path)
 
     if not result.ok:
         raise typer.Exit(code=1)
 
 
-def _emit_draft_error(report: dict[str, Any], json_output: bool) -> NoReturn:
+def _emit_save_error(report: dict[str, Any], json_output: bool) -> NoReturn:
     if json_output:
         typer.echo(json.dumps(report, indent=2))
     else:
@@ -209,7 +209,7 @@ def _emit_draft_error(report: dict[str, Any], json_output: bool) -> NoReturn:
 
 
 def _relativize(path_str: str) -> str:
-    """Show the draft path relative to the working dir when possible, else absolute."""
+    """Show the recipe path relative to the working dir when possible, else absolute."""
     path = Path(path_str)
     try:
         return str(path.relative_to(Path.cwd()))
@@ -217,9 +217,9 @@ def _relativize(path_str: str) -> str:
         return path_str
 
 
-def _print_draft_human(result: DraftResult, display_path: str | None) -> None:
+def _print_save_human(result: SaveResult, display_path: str | None) -> None:
     if result.ok:
-        console.print(f"[green]✓[/green] wrote draft {display_path}")
+        console.print(f"[green]✓[/green] wrote recipe {display_path}")
         console.print(f"  slug: {result.slug}")
         console.print(f"  id:   {result.id}")
         if result.roundtrip_byte_stable is False:

@@ -102,10 +102,10 @@ Code CLI is **not** in the image — it runs on your host with your own account.
 2. **Run `claude`** in the directory that contains your `docker-compose.yml`. Paste a recipe URL.
    The skill fetches the page, maps fields, then pipes the payload into the running container:
    ```bash
-   docker compose exec -T app python /app/.claude/skills/recipe-from-url/scripts/build_draft.py < tmp/recipe-payload.json
+   docker compose exec -T app recipes save-recipe --json < tmp/recipe-payload.json
    ```
-   The draft lands at `./recipes/_drafts/<slug>.md` via the mounted volume. Review it and move it
-   into `./recipes/` when satisfied.
+   The recipe lands directly at `./recipes/<slug>.md` via the mounted volume; the skill then runs
+   `recipes sync` so the library picks it up. Notice an issue? Fix it from the web UI's edit form.
 
 A fully in-app URL importer is planned (see [`TODO.md`](TODO.md)); this skill is the interim path.
 
