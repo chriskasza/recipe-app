@@ -23,14 +23,14 @@ at any directory of Markdown files and it rebuilds its entire derived state from
 
 | Module | What it is | Status |
 |---|---|---|
-| **Recipe corpus** | Markdown files — the source of truth | ✅ available (flat dir; nested-dir support planned) |
+| **Recipe corpus** | Markdown files — the source of truth | ✅ available (organize into subdirectories; discovery is recursive) |
 | `app/core/` | Schema, parse, serialize, validate (shared lib) | ✅ available |
 | **SQLite mirror + sync** | Derived FTS5 index, idempotent sync | ✅ available |
 | **Web UI** (HTMX/Jinja) | Default zero-build frontend | ✅ available |
 | **REST/JSON API** | Shared data contract for frontends | 🔜 planned |
 | **React SPA** | Optional richer frontend on the API | 🔜 planned |
 | **Static Site Generator** | Corpus → static HTML, no DB | 🔜 planned |
-| **URL importer** | URL → draft recipe | 🟡 interim: `recipe-from-url` skill; in-app planned |
+| **URL importer** | URL → recipe file | 🟡 write half in-app (`recipes save-recipe`); URL fetch via `recipe-from-url` skill; in-app extraction planned |
 | **Meal planner** | Weekly scheduling, shopping lists | 🔜 planned |
 | **AI assistance** | LLM + retrieval + grounding | 🔜 planned |
 
@@ -53,11 +53,19 @@ See [`docs/architecture.md`](docs/architecture.md) for the module map and decisi
 
 **Stage 3 — simple visualization layer ✅** Read-only web UI. `GET /` library with search box, facet checkboxes (tags / cuisine / meal type / dietary), max-time slider, sort dropdown. `GET /search` returns an HTMX fragment with out-of-band facet refresh. `GET /r/{slug}` renders the recipe with Markdown body via `markdown-it-py` and a print-friendly stylesheet.
 
-**Stage 4 — CRUD ✅** `GET/POST /new`, `GET/POST /r/{slug}/edit`, `POST /r/{slug}/archive|unarchive`. All writes go through `build_markdown → write file → sync_one`. Slug immutable on edit. 68 tests.
+**Stage 4 — CRUD ✅** `GET/POST /new`, `GET/POST /r/{slug}/edit`, `POST /r/{slug}/archive|unarchive`. All writes go through `build_markdown → write file → sync_one`. Slug immutable on edit.
 
-**Modular restructure ✅** Re-framed the project as optional modules on the corpus core; locked in dual frontends on a shared REST API, monorepo, and folder-as-organization-only. See the roadmap for what's next.
+**Modular restructure ✅** Re-framed the project as optional modules on the corpus core; locked in dual frontends on a shared REST API, monorepo, and folder-as-organization-only.
 
-See [`TODO.md`](TODO.md) for the full roadmap and [`docs/architecture.md`](docs/architecture.md) for the principles.
+**UI restyle ("Skillet") ✅** Warm-palette HTMX/Jinja UI with light/dark/auto themes, a `favorite` frontmatter field + "My recipes" view, hero/thumbnail images from `images[0].path` (served by `GET /media/{path}`), and a min–max total-time filter.
+
+**Hierarchical corpus ✅** Recipes may live in subdirectories; discovery recurses the tree with global slug-uniqueness. Folders are organization-only — `/r/{slug}` URLs stay stable across moves.
+
+**URL importer — write half ✅** `recipes save-recipe` renders a JSON payload through the canonical pipeline straight into the corpus; the `recipe-from-url` skill feeds it. Deterministic in-app URL extraction is still planned.
+
+**CI/CD ✅** GitHub Actions publishes the Docker image to GHCR on every push to `main`, and a quality-gates workflow runs `ruff`, `mypy --strict`, `recipes validate`, and `pytest` (117 tests) on every push and PR.
+
+See [`TODO.md`](TODO.md) for the roadmap of remaining work and [`docs/architecture.md`](docs/architecture.md) for the principles.
 
 ## Local development
 
@@ -125,7 +133,7 @@ recipe-app/
 │   ├── templates/    # base, index, _facets, _results, recipe, edit, _form
 │   ├── static/       # style.css (cards / chips / form layout / print)
 │   ├── api/          # REST/JSON API                                       — planned
-│   ├── importer/     # URL → draft recipe                                  — planned
+│   ├── importer/     # payload → recipe file (recipes save-recipe)         — write half done
 │   ├── ai/           # LLM provider, retrieval, grounding                  — planned
 │   ├── cli.py        # operator CLI (Typer)
 │   ├── config.py     # path/env settings

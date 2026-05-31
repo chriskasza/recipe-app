@@ -40,7 +40,7 @@ swapped without touching the recipes.
 
 | Module | What it is | Status |
 |---|---|---|
-| **Recipe corpus** (Layer 0) | Markdown files; the source of truth | ✅ available (flat dir; nested-dir support planned) |
+| **Recipe corpus** (Layer 0) | Markdown files; the source of truth | ✅ available (recursive discovery; subdirectories organize) |
 | `app/core/` (shared infra) | Schema, parse, serialize, validate | ✅ available |
 | **Dynamic app** — SQLite mirror + sync | Derived FTS5 index, idempotent sync | ✅ available |
 | **Dynamic app** — Web UI (HTMX/Jinja) | Default zero-build frontend | ✅ available |
@@ -153,11 +153,13 @@ The folder is **metadata, not identity**:
 - Identity remains the **ULID** (see below); the slug is the human handle; the path is just where
   the file happens to sit.
 
-The enabling code change is small and deferred to a dedicated stage: discovery moves from
-`recipes_dir.glob("*.md")` to `recipes_dir.rglob("**/*.md")` (in `app/db/sync.py` and
-`app/cli.py`), with a global slug-uniqueness check across the tree and the `_drafts/`/`images/`
-helper directories excluded. **Until that stage lands the dynamic app discovers only top-level
-`*.md`** — nested files are visible to hand-reading and the SSG, but not yet to sync.
+This shipped in Stage M2: discovery uses `recipes_dir.rglob("*.md")` (via
+`app/db/sync.py::_iter_recipe_files`, reused by `app/cli.py doctor`), skipping the `_drafts/` and
+`images/` helper directories through a shared `EXCLUDED_DIRS` frozenset. `sync_all`/`validate_all`
+enforce global slug-uniqueness across the tree (duplicate stems are reported and skipped), and the
+write path resolves a slug to its file anywhere in the tree via `app/web/forms.py::find_recipe_file`,
+rewriting in place so a recipe keeps its subdirectory. New recipes may target an optional `folder`
+(validated by `resolve_new_recipe_path`).
 
 ### Why `ruamel.yaml` in roundtrip mode
 
