@@ -11,6 +11,11 @@ services:
     environment:
       RECIPES_DIR: /app/recipes
       DATA_DIR: /app/data
+      # Auth: read access is public; CRUD requires login. Set a strong secret in
+      # production so sessions survive restarts/redeploys. COOKIE_SECURE=true
+      # assumes a reverse proxy terminates HTTPS in front of the app.
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
     restart: unless-stopped
 
   # Opt-in operator CLI as a one-shot, e.g. `docker compose --profile cli run --rm cli recipes validate`

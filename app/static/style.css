@@ -236,6 +236,19 @@ a { color: var(--accent); }
   border: 2px solid var(--surface);
   box-shadow: var(--shadow-sm);
 }
+.logout-form { margin: 0; }
+button.avatar { cursor: pointer; padding: 0; text-transform: uppercase; }
+
+/* ============ LOGIN ============ */
+.login-page { max-width: 420px; }
+.login-card { margin-top: 8vh; }
+.login-card h1 { margin-bottom: 1rem; }
+.login-error {
+  color: var(--accent-on, #fff);
+  background: var(--accent);
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+}
 
 /* ============ LIBRARY LAYOUT ============ */
 .page {

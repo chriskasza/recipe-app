@@ -107,6 +107,52 @@ Code CLI is **not** in the image — it runs on your host with your own account.
 
 A fully in-app URL importer is planned (see [`../TODO.md`](../TODO.md)); this skill is the interim path.
 
+## Authentication ✅
+
+Read access (browsing, search, recipe pages) is **public**. Every write — adding,
+editing, archiving, or favoriting recipes — requires a login. This is what makes it
+safe to expose the app on the internet.
+
+Credentials live in `$DATA_DIR/auth.json` (argon2 password hashes), **not** the
+SQLite mirror — so they survive `recipes rebuild-index`. Create an account with the
+operator CLI:
+
+```bash
+docker compose exec app recipes set-password kasza   # prompts for a password
+docker compose exec app recipes list-users
+docker compose exec app recipes delete-user kasza
+```
+
+Then visit `/login` (or click **Log in**) to unlock the Add / Edit / favorite
+controls. Log out from the avatar button in the header.
+
+### Sessions and HTTPS
+
+Two env vars (wired through `docker-compose.yml`):
+
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `SESSION_SECRET` | auto-generated | Signs the session cookie. **Set this in production** to a strong random value (e.g. `openssl rand -base64 32`) so logins survive restarts and redeploys. If unset, a random secret is generated and persisted to `$DATA_DIR/.session_secret`. |
+| `COOKIE_SECURE` | `true` | Marks the session cookie `Secure` (HTTPS-only). Keep `true` in production; set `false` only for local plain-http testing. |
+
+The app does **not** terminate TLS itself. Put it behind a reverse proxy
+(Caddy, nginx, Cloudflare Tunnel, …) that handles HTTPS and forwards to the
+container's port 3141:
+
+```
+Internet ──▶ [Caddy/nginx : HTTPS] ──▶ app:3141 (http)
+```
+
+With `COOKIE_SECURE=true` the login cookie is only sent over HTTPS, so make sure
+your proxy is serving the app over `https://` before exposing it.
+
+### Brute-force protection
+
+The app does not rate-limit `/login` itself (argon2 makes each guess slow, but
+that is not a substitute for throttling). Rate-limit it at the reverse proxy,
+which blocks abuse before it reaches the app — e.g. Caddy's `rate_limit`
+directive or nginx's `limit_req` on the `/login` path.
+
 ## Choosing which modules to run ✅
 
 The image runs the **web UI + SQLite mirror** by default (`docker compose up`), and additional

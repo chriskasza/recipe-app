@@ -13,10 +13,9 @@ venv/
 htmlcov/
 .coverage
 
-# Derived state (rebuildable — never canonical)
-data/recipes.db
-data/recipes.db-wal
-data/recipes.db-shm
+# Runtime state: derived DB (rebuildable) + auth secrets. Never canonical, and
+# the app recreates the directory on startup, so the whole thing is ignored.
+data/
 
 # Editor
 .idea/

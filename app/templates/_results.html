@@ -47,6 +47,7 @@
       {% else %}
         <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v7a2 2 0 0 0 2 2v9M8 3v7M6 3v7M18 3c-1.5 0-3 1.5-3 5s1 5 3 5m0-10v17"/></svg>
       {% endif %}
+      {% if current_user %}
       <form class="fav-form no-print" method="post"
             action="/r/{{ r.slug }}/{{ 'unfavorite' if r.favorite else 'favorite' }}?next=/"
             x-data="{ on: {{ 'true' if r.favorite else 'false' }} }"
@@ -56,6 +57,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21.5l8.8-8.8a5 5 0 0 0 0-7.1z"/></svg>
         </button>
       </form>
+      {% endif %}
       {% if r.total_minutes is not none %}
       <span class="time">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>

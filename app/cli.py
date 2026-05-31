@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from app import __version__
+from app.auth import store as auth_store
 from app.config import load_settings
 from app.core.validator import IssueLevel
 from app.db import queries, sync
@@ -230,6 +231,42 @@ def _print_save_human(result: SaveResult, display_path: str | None) -> None:
             console.print(f"  [red]{err}[/red]")
     for warning in result.warnings:
         console.print(f"  [yellow]⚠ {warning}[/yellow]")
+
+
+@app.command("set-password")
+def set_password_command(
+    username: Annotated[str | None, typer.Argument(help="Account username.")] = None,
+) -> None:
+    """Create or update a login account in DATA_DIR/auth.json (outside the DB)."""
+    settings = load_settings()
+    if username is None:
+        username = typer.prompt("Username")
+    password = typer.prompt("Password", hide_input=True, confirmation_prompt=True)
+    auth_store.set_password(settings.auth_path, username, password)
+    console.print(f"[green]✓[/green] set password for {username!r} in {settings.auth_path}")
+
+
+@app.command("list-users")
+def list_users_command() -> None:
+    """List login accounts."""
+    settings = load_settings()
+    users = auth_store.load_users(settings.auth_path)
+    if not users:
+        console.print("[dim]no users[/dim]")
+        return
+    for name in sorted(users):
+        console.print(name)
+
+
+@app.command("delete-user")
+def delete_user_command(username: str) -> None:
+    """Remove a login account."""
+    settings = load_settings()
+    if auth_store.delete_user(settings.auth_path, username):
+        console.print(f"[green]✓[/green] removed {username!r}")
+    else:
+        console.print(f"[red]no user {username!r}[/red]")
+        raise typer.Exit(code=1)
 
 
 @app.command("run-dev")

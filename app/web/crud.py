@@ -17,7 +17,7 @@ from app.core.serializer import _yaml, serialize
 from app.core.validator import IssueLevel, ValidationIssue
 from app.core.vocab import DIETARY_FLAGS, MEAL_TYPES
 from app.db import sync as db_sync
-from app.web.deps import get_db_path, get_recipes_dir, get_templates
+from app.web.deps import get_db_path, get_recipes_dir, get_templates, require_user
 from app.web.forms import (
     FormData,
     build_markdown,
@@ -137,6 +137,7 @@ def _write_and_sync(path: Path, text: str, recipes_dir: Path, db_path: Path) -> 
 @router.get("/new", response_class=HTMLResponse)
 def new_form(
     request: Request,
+    user: Annotated[str, Depends(require_user)],
     templates: Annotated[Jinja2Templates, Depends(get_templates)],
 ) -> HTMLResponse:
     return templates.TemplateResponse(
@@ -155,6 +156,7 @@ def new_form(
 @router.post("/new", response_class=HTMLResponse)
 async def new_submit(
     request: Request,
+    user: Annotated[str, Depends(require_user)],
     recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
     db_path: Annotated[Path, Depends(get_db_path)],
     templates: Annotated[Jinja2Templates, Depends(get_templates)],
@@ -267,6 +269,7 @@ async def new_submit(
 def edit_form(
     slug: str,
     request: Request,
+    user: Annotated[str, Depends(require_user)],
     recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
     templates: Annotated[Jinja2Templates, Depends(get_templates)],
 ) -> HTMLResponse:
@@ -294,6 +297,7 @@ def edit_form(
 async def edit_submit(
     slug: str,
     request: Request,
+    user: Annotated[str, Depends(require_user)],
     recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
     db_path: Annotated[Path, Depends(get_db_path)],
     templates: Annotated[Jinja2Templates, Depends(get_templates)],
@@ -360,6 +364,7 @@ async def edit_submit(
 @router.post("/r/{slug}/archive")
 def archive_recipe(
     slug: str,
+    user: Annotated[str, Depends(require_user)],
     recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
     db_path: Annotated[Path, Depends(get_db_path)],
 ) -> RedirectResponse:
@@ -370,6 +375,7 @@ def archive_recipe(
 @router.post("/r/{slug}/unarchive")
 def unarchive_recipe(
     slug: str,
+    user: Annotated[str, Depends(require_user)],
     recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
     db_path: Annotated[Path, Depends(get_db_path)],
 ) -> RedirectResponse:
@@ -387,6 +393,7 @@ def _flip_archived(slug: str, *, archived: bool, recipes_dir: Path, db_path: Pat
 @router.post("/r/{slug}/favorite")
 def favorite_recipe(
     slug: str,
+    user: Annotated[str, Depends(require_user)],
     recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
     db_path: Annotated[Path, Depends(get_db_path)],
     next: Annotated[str, Query()] = "",
@@ -398,6 +405,7 @@ def favorite_recipe(
 @router.post("/r/{slug}/unfavorite")
 def unfavorite_recipe(
     slug: str,
+    user: Annotated[str, Depends(require_user)],
     recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
     db_path: Annotated[Path, Depends(get_db_path)],
     next: Annotated[str, Query()] = "",

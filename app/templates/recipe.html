@@ -40,6 +40,7 @@
             Serves <b>{{ d.recipe.servings }}</b>
           </span>
           {% endif %}
+          {% if current_user %}
           <form class="save-form no-print" method="post"
                 action="/r/{{ d.recipe.slug }}/{{ 'unfavorite' if d.recipe.favorite else 'favorite' }}?next=/r/{{ d.recipe.slug }}">
             <button type="submit" class="save-btn{% if d.recipe.favorite %} on{% endif %}" aria-pressed="{{ 'true' if d.recipe.favorite else 'false' }}">
@@ -47,6 +48,7 @@
               {{ 'Saved' if d.recipe.favorite else 'Save' }}
             </button>
           </form>
+          {% endif %}
         </div>
       </header>
 
@@ -111,6 +113,7 @@
 
       <div class="recipe-actions no-print">
         <button type="button" class="btn btn-ghost" onclick="window.print()">Print</button>
+        {% if current_user %}
         <a href="/r/{{ d.recipe.slug }}/edit" class="btn btn-ghost">Edit</a>
         {% if d.recipe.archived %}
         <form method="post" action="/r/{{ d.recipe.slug }}/unarchive">
@@ -120,6 +123,7 @@
         <form method="post" action="/r/{{ d.recipe.slug }}/archive">
           <button type="submit" class="btn btn-ghost">Archive</button>
         </form>
+        {% endif %}
         {% endif %}
       </div>
     </div>
