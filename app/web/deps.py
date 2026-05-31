@@ -62,7 +62,7 @@ def require_user(request: Request) -> str:
 
 def _inject_current_user(request: Request) -> dict[str, str | None]:
     """Context processor: expose ``current_user`` to every template render."""
-    return {"current_user": request.session.get("user")}
+    return {"current_user": current_user(request)}
 
 
 @lru_cache(maxsize=1)

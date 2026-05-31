@@ -17,6 +17,10 @@ from argon2.exceptions import VerifyMismatchError
 
 _hasher = PasswordHasher()
 
+# A precomputed hash to verify against when the user is unknown, so an attacker
+# can't distinguish "no such user" from "wrong password" by response timing.
+_DUMMY_HASH = _hasher.hash("dummy-password")
+
 
 def load_users(path: Path) -> dict[str, str]:
     """Return the ``{username: password_hash}`` map; empty if the file is absent."""
@@ -54,12 +58,15 @@ def delete_user(path: Path, username: str) -> bool:
 
 
 def verify(path: Path, username: str, password: str) -> bool:
-    """Return True iff ``username`` exists and ``password`` matches its hash."""
+    """Return True iff ``username`` exists and ``password`` matches its hash.
+
+    Always runs an argon2 verification (against a dummy hash for unknown users)
+    so the response time doesn't reveal whether the username exists.
+    """
     users = load_users(path)
-    stored = users.get(username)
-    if stored is None:
-        return False
+    stored = users.get(username, _DUMMY_HASH)
     try:
-        return _hasher.verify(stored, password)
+        _hasher.verify(stored, password)
     except VerifyMismatchError:
         return False
+    return username in users

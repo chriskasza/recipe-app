@@ -45,6 +45,7 @@ def login_submit(
     next: Annotated[str, Form()] = "",
 ) -> Response:
     if store.verify(users_path, username, password):
+        request.session.clear()  # fresh session on login (defense against fixation)
         request.session["user"] = username
         return RedirectResponse(_safe_next(next, "/"), status_code=303)
     return templates.TemplateResponse(

@@ -43,6 +43,7 @@ def _resolve_session_secret(data_dir: Path) -> str:
     secret = secrets.token_urlsafe(32)
     data_dir.mkdir(parents=True, exist_ok=True)
     secret_file.write_text(secret, encoding="utf-8")
+    secret_file.chmod(0o600)  # owner-only: this secret forges session cookies
     return secret
 
 

@@ -124,6 +124,14 @@ def test_anon_post_redirects_to_login(anon_client: TestClient, path: str) -> Non
     assert resp.headers["location"].startswith("/login?next=")
 
 
+def test_gate_redirect_encodes_next(anon_client: TestClient) -> None:
+    # A path with a query-significant char (& is a valid path char) must be
+    # URL-encoded into the next param, not spliced raw into the query string.
+    resp = anon_client.get("/r/foo&bar/edit", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/login?next=%2Fr%2Ffoo%26bar%2Fedit"
+
+
 def test_anon_post_new_writes_nothing(anon_client: TestClient, crud_recipes_dir: Path) -> None:
     before = {p.name for p in crud_recipes_dir.rglob("*.md")}
     anon_client.post(

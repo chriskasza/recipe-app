@@ -146,6 +146,13 @@ Internet ──▶ [Caddy/nginx : HTTPS] ──▶ app:3141 (http)
 With `COOKIE_SECURE=true` the login cookie is only sent over HTTPS, so make sure
 your proxy is serving the app over `https://` before exposing it.
 
+### Brute-force protection
+
+The app does not rate-limit `/login` itself (argon2 makes each guess slow, but
+that is not a substitute for throttling). Rate-limit it at the reverse proxy,
+which blocks abuse before it reaches the app — e.g. Caddy's `rate_limit`
+directive or nginx's `limit_req` on the `/login` path.
+
 ## Choosing which modules to run ✅
 
 The image runs the **web UI + SQLite mirror** by default (`docker compose up`), and additional

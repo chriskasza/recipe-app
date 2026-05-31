@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
@@ -31,7 +32,7 @@ app.include_router(web_router)
 @app.exception_handler(AuthRequiredError)
 async def _auth_required_handler(request: Request, exc: AuthRequiredError) -> RedirectResponse:
     """Send unauthenticated write attempts to the login page."""
-    return RedirectResponse(f"/login?next={exc.next_path}", status_code=303)
+    return RedirectResponse(f"/login?{urlencode({'next': exc.next_path})}", status_code=303)
 
 
 @app.get("/healthz")
