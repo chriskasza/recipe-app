@@ -27,21 +27,6 @@ For what has already shipped, see the module-status table in
 These enabling stages make the system genuinely modular. They unblock the frontend and renderer
 modules below.
 
-## Stage M1 — Modular foundations (enabling)
-
-Make modules selectable without changing the default single-service behavior.
-
-- Split `pyproject.toml` `[project.dependencies]` into `[project.optional-dependencies]` groups:
-  `core` (pydantic, ruamel, python-ulid), `web` (fastapi, uvicorn, jinja2, python-multipart,
-  markdown-it-py), `api` (fastapi, uvicorn), `cli` (typer, rich), `ai` (LLM client, later).
-  A default extra (or `all`) reproduces today's full install.
-- `docker-compose.yml` `profiles:` so services are opt-in (e.g. `--profile web --profile api`).
-- Parameterize the Dockerfile entrypoint (env/arg) so one image can run as web / api / cli-worker /
-  ssg-build. Default `docker compose up` stays equivalent to today.
-- Update `docs/running.md` to flip the toggling docs from "Planned" to "Available now".
-- Verify: existing single-service run is unchanged; a lean `pip install -e ".[core]"` imports
-  `app.core` without FastAPI present.
-
 ## Stage M3 — REST/JSON API module
 
 A clean data contract both frontends consume.

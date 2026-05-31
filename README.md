@@ -55,7 +55,7 @@ Your recipes live in `./recipes/` (Markdown, the source of truth) and the derive
 `./data/`, both bind-mounted from your project directory.
 
 See [`docs/running.md`](docs/running.md) for the full guide — the compose file, authentication,
-the URL importer, and planned module toggling — or [`CONTRIBUTING.md`](CONTRIBUTING.md) to run
+the URL importer, and choosing which modules to run — or [`CONTRIBUTING.md`](CONTRIBUTING.md) to run
 from source for development.
 
 ## Status

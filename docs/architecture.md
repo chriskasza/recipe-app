@@ -178,17 +178,31 @@ split repos. `app/core/` is written as a dependency-free library, so it can be c
 installable package later **without** a repo split if a module ever needs to consume it
 standalone.
 
-### How modules are toggled at deploy time (planned mechanism)
+### How modules are toggled at deploy time
 
 Two coordinated switches let a deployment include only the modules it wants:
 
-- **`pyproject.toml` optional-dependency groups** (`core`, `web`, `api`, `cli`, `ai`, …) keep heavy
-  deps (FastAPI, the LLM client, …) out of a lean install. `core` carries only Pydantic + ruamel +
-  ulid.
-- **`docker-compose.yml` profiles** select which services run (e.g.
-  `docker compose --profile web --profile api up`). The Dockerfile's entrypoint is parameterized so
-  one image can run as the web app, the API, a CLI/worker, or the SSG build.
+- **`pyproject.toml` optional-dependency extras** — `core`, `cli`, `importer`, `web`, `api`, `all`,
+  `dev`. `core` carries only Pydantic + ruamel + ulid. `web` is the default and transitively pulls
+  `importer` (so the bundled `recipe-from-url` skill's `curl_cffi` is always in the image). There is
+  no `ai` extra yet — it is planned for the AI stage.
+- **`docker-compose.yml` profiles** — the default `app` service (web UI) runs with a bare
+  `docker compose up`, unchanged. Opt-in services are guarded by a profile: the `cli` one-shot
+  service ships today; `api` and `ai` services are planned as commented templates. The Dockerfile is
+  parameterized by the `INSTALL_EXTRA` build arg (which extra to install) and the `APP_ROLE` runtime
+  env (which gates the boot `recipes sync`: roles `web`/`api` sync on start; `cli` skips it).
 
-This mechanism is **not yet implemented** — today the image runs a single combined service. See
-[`running.md`](running.md) for current vs. target usage and [`TODO.md`](../TODO.md)
-for the enabling stage.
+Example invocations:
+
+```bash
+# Default: start the web UI (no profile needed)
+docker compose up -d
+
+# Opt-in CLI one-shot
+docker compose --profile cli run --rm cli recipes validate
+
+# api / ai profiles are planned (Stage M3 / AI stage)
+```
+
+This shipped in the Modular foundations stage. The default `docker compose up` is unchanged for
+existing deployments. See [`running.md`](running.md) for the full usage guide.
