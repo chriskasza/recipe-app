@@ -51,7 +51,8 @@ The body section headings are matched **case-insensitively**. Unknown headings a
 | `images` | list of mapping | no | `[{ path, alt }]`. Paths are relative to `recipes/`. |
 | `created_at` | datetime (ISO 8601) | yes | UTC, ends with `Z`. |
 | `updated_at` | datetime (ISO 8601) | yes | UTC, ends with `Z`. |
-| `archived` | boolean | yes | Defaults `false`. |
+| `archived` | boolean | yes | Defaults `false`. Archived recipes drop out of the library listing but keep their `/r/{slug}` URL. |
+| `favorite` | boolean | yes | Defaults `false`. Surfaces the recipe in the "My recipes" view. |
 
 ### Ingredient entries
 

@@ -52,6 +52,12 @@ validate` and `recipes sync` will flag it and skip the duplicate.
 
 ## Everyday tasks
 
+These tasks center on a text editor and `git`. Where a step shows a `recipes` command and you're
+running via Docker, invoke it inside the container — `docker compose exec app recipes sync` — or
+just use the **web UI**, which syncs each save for you. (The container also runs `recipes sync` on
+startup, so edits made while it's stopped are picked up next launch.) See [`running.md`](running.md)
+for the full CLI reference.
+
 ### Add a recipe
 1. Copy the block from [`recipe-template.md`](recipe-template.md) into `recipes/<your-slug>.md`.
 2. Generate the `id` (a ULID) and the `created_at` / `updated_at` timestamps — the template shows
@@ -98,5 +104,5 @@ roundtrip-stable serializer — editing one field touches only that field.
 - **One-way writes.** The app never edits the database behind your files' backs — every change goes
   `Recipe → serialize → Markdown → sync`. Your files are always the truth.
 
-See [`../GETTING-STARTED.md`](../GETTING-STARTED.md) to run the app over your library, and
+See [`running.md`](running.md) to run the app over your library, and
 [`architecture.md`](architecture.md) for the full module map.

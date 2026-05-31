@@ -34,23 +34,24 @@ This project is a modular system on one core (a Markdown recipe corpus). See [`d
 
 ## Layout (where things live)
 
-- `app/core/` — canonical pipeline. `models.py` (Pydantic), `parser.py`, `serializer.py`, `validator.py`, `vocab.py`, `ids.py`.
+- `app/core/` — canonical pipeline. `models.py` (Pydantic), `parser.py`, `serializer.py`, `validator.py`, `vocab.py`, `ids.py`, `constants.py` (`EXCLUDED_DIRS`).
+- `app/main.py` — FastAPI entrypoint: builds the app, mounts `/static`, includes the web router, serves `/healthz`.
 - `app/db/` — `schema.sql` (single DDL file for now; migrations come if/when the schema needs to evolve in production), `connection.py`, `sync.py`, `queries.py` (typed read helpers including `search_library`, `facet_counts_*`, `get_recipe_detail`).
 - `app/web/` — FastAPI router + Jinja templates + Markdown filter.
   - `library.py` (`GET /` full page, `GET /search` HTMX fragment with OOB facets), `recipe.py` (`GET /r/{slug}`), `deps.py` (cached `Settings` / `db_path` / `Jinja2Templates` providers — tests override `get_db_path` **and** `get_recipes_dir`), `markdown.py` (singleton `MarkdownIt` + `md` Jinja filter), `__init__.py` (combined router).
   - `forms.py` — `FormData` dataclass, `parse_form` (decodes `request.form()`), `build_markdown` (assembles canonical file text via ruamel `CommentedMap`), `find_recipe_file` (tree-wide slug→path resolver), `slug_in_use` (now global), `resolve_new_recipe_path` (validates the optional new-recipe folder). Used by the CRUD layer.
   - `crud.py` — `GET/POST /new`, `GET/POST /r/{slug}/edit`, `POST /r/{slug}/archive|unarchive`. All writes call `_write_and_sync` which restores the original file on `sync_one` failure.
-- `app/templates/` — `base.html` (Pico.css + HTMX + Alpine via pinned CDN versions), `index.html`, `_facets.html`, `_results.html`, `_search_response.html` (OOB wrapper for `/search`), `recipe.html`, `edit.html` + `_form.html` (shared form partial for new/edit).
+- `app/templates/` — `base.html` (Pico.css + HTMX + Alpine via pinned CDN versions), `index.html`, `_facets.html`, `_results.html`, `_pagination.html` (library pagination controls), `_search_response.html` (OOB wrapper for `/search`), `recipe.html`, `edit.html` + `_form.html` (shared form partial for new/edit).
 - `app/static/style.css` — card grid, chips, `@media print` rules. Pico.css covers the rest of the chrome.
 - `app/importer/` — payload → canonical recipe file. `save.py` (`RecipePayload` Pydantic models + `save_recipe`/`render_markdown`/`to_report`) backs the `recipes save-recipe` CLI command: it renders a JSON payload through the canonical pipeline (ULID, slug, timestamps, parse + validate, serializer roundtrip check) and writes `RECIPES_DIR/<slug>.md` straight into the corpus (tree-wide slug-collision check; no draft staging — mistakes are fixed from the web edit form). The `recipe-from-url` skill does the page fetch + field extraction and feeds the payload in. Deterministic in-app URL fetch/JSON-LD extraction (Stage 5 `import-url`) is still future work.
 - `app/ai/` — `LLMProvider` protocol + Ollama impl + retrieval/grounding (Stage 7, not yet created).
-- `app/cli.py` — operator surface (Typer): `validate`, `sync`, `rebuild-index`, `search`, `show`, `doctor`, `run-dev`.
+- `app/cli.py` — operator surface (Typer): `validate`, `sync`, `rebuild-index`, `search`, `show`, `doctor`, `save-recipe`, `run-dev`.
 - `app/config.py` — env-driven paths (`RECIPES_DIR`, `DATA_DIR`).
 - `recipes/` — **gitignored** dev scratch workspace. Populated by the `recipe-from-url` skill so developers can validate app functionality with real recipes. Never committed. The app's `RECIPES_DIR` env var defaults here for `recipes run-dev`.
 - `tests/fixtures/recipes/` — **frozen test corpus**. The 7 seed recipes committed to the repo. The parser roundtrip test and sync-idempotency test pin their behavior against this exact byte content — don't casually edit these files. Future test-only recipes go here too.
 - `data/` — SQLite DB. Gitignored. Wiped freely; `recipes rebuild-index` reproduces it.
 - `tmp/` — local scratch for log captures and transient outputs. Gitignored.
-- `tests/` — `test_parser_roundtrip.py`, `test_validator.py`, `test_sync_idempotent.py`, `test_fts_search.py`, `test_healthz.py`, `test_db_queries_library.py`, `test_web_library.py`, `test_web_recipe.py`, `test_web_crud.py`. `conftest.py` provides `recipes_dir` (→ `tests/fixtures/recipes/`), `tmp_db`, `populated_db`, `client` (read-only; `get_db_path` overridden), and `crud_client` (CRUD; both `get_db_path` and `get_recipes_dir` overridden to temp paths seeded from the fixture corpus).
+- `tests/` — `test_parser_roundtrip.py`, `test_validator.py`, `test_sync_idempotent.py`, `test_fts_search.py`, `test_healthz.py`, `test_importer_save.py`, `test_db_queries_library.py`, `test_web_library.py`, `test_web_recipe.py`, `test_web_crud.py`. `conftest.py` provides `recipes_dir` (→ `tests/fixtures/recipes/`), `tmp_db`, `populated_db`, `client` (read-only; `get_db_path` overridden), and `crud_client` (CRUD; both `get_db_path` and `get_recipes_dir` overridden to temp paths seeded from the fixture corpus).
 
 ## Recipe format
 
@@ -59,6 +60,7 @@ See `docs/recipe-format.md`. Structured fields (ingredients, times, tags) live i
 ## Web layer conventions (Stage 3)
 
 - `GET /` always returns the full HTML shell. `GET /search` always returns just a fragment (`_results.html` + an OOB `<aside id="facets" hx-swap-oob="true">…</aside>`). Keep the split — no `HX-Request` sniffing.
+- Both `GET /` and `GET /search` paginate via a `page` query param (`PAGE_SIZE = 24`, a module global in `app/web/library.py`). The view passes `page`/`total_pages`/`has_prev`/`has_next`/`start`/`end` to the templates; `_pagination.html` renders the controls. Facet AND/OR semantics apply before pagination (total is the unpaginated match count).
 - Facet semantics: AND across groups, OR within a group, AND with the FTS query. `archived = 0` is always applied in the library; `/r/{slug}` still serves archived recipes so existing links keep working. `_build_filters` in `app/db/queries.py` is the single chokepoint — extend it there, don't open-code WHERE clauses in new endpoints.
 - The detail page renders entirely from DB columns (`body_markdown`, `frontmatter_json`). Do not re-parse the source Markdown file on the request path.
 - Markdown → HTML goes through the `| md` Jinja filter (singleton `MarkdownIt` in `app/web/markdown.py`). Templates use `{{ ... | md | safe }}` because the corpus is trusted; if untrusted Markdown is ever ingested, add sanitization in that one file.

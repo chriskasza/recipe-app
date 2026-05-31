@@ -29,7 +29,8 @@ hand**.
      ```
 3. Fill in the rest. Delete any optional fields you don't need, and the `# …` comments once you're
    done (ruamel preserves them if you keep them, but they add noise to diffs).
-4. `recipes validate` to check it, then `recipes sync` (or just save in the UI).
+4. `recipes validate` to check it, then `recipes sync` (or just save in the UI). Running via Docker?
+   Prefix those with `docker compose exec app` — see [`running.md`](running.md).
 
 ### Style rules that keep diffs clean
 
