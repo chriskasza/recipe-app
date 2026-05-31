@@ -51,7 +51,7 @@ curl http://localhost:3142/healthz
 | Port | Role |
 |------|------|
 | 3141 | Production Docker instance (e.g. `~/code/recipes`) |
-| 3142 | Development — `recipes run-dev` default and `docker compose up` in this repo |
+| 3142 | Development — `recipes run-dev` default |
 
 The `docker-compose.yml` in this repo reads `RECIPE_APP_PORT` from `.env` (gitignored; copy from
 `.env.example`). The default falls back to 3141 so a standalone deployment without a `.env` still
