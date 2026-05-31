@@ -24,6 +24,7 @@ This project is a modular system on one core (a Markdown recipe corpus). See [`d
 - `pytest` for everything. Required suites: parser roundtrip, sync idempotency, FTS search, validator. Add a suite alongside each new layer.
 - Dependencies declared in `pyproject.toml` (no `requirements.txt`). Dev deps in the `[dev]` optional group.
 - Run tools via `.venv/bin/` directly (e.g. `.venv/bin/pytest`, `.venv/bin/mypy`, `.venv/bin/ruff`). Never call them as `python -m <tool>` or `python pytest ...`.
+- `curl_cffi` is a **runtime dependency of the default Docker image**, not of `app/`. Nothing under `app/` imports it, but the bundled `recipe-from-url` skill (`.claude/skills/recipe-from-url/SKILL.md`) does `from curl_cffi import requests` and runs it **inside the running `app` container** via `docker compose exec app ... python tmp/fetch.py`. When splitting dependencies into optional extras, keep `curl_cffi` installed in the default/web image — don't demote it to an opt-in extra the web image skips. Likewise keep the compose service named `app`: the skill and docs call `docker compose exec app`.
 
 ## Code style
 
@@ -84,3 +85,5 @@ See `docs/recipe-format.md`. Structured fields (ingredients, times, tags) live i
 - The roadmap lives in `TODO.md`. Update it when stages complete or scope shifts.
 - For multi-step work, use a task list.
 - Architectural tradeoffs go in `docs/architecture.md` so they survive future sessions.
+- **Plan with Opus, implement with Sonnet.** The preferred workflow is to do design/planning on the Opus model, then carry out the implementation on Sonnet. When leaving Plan mode, switching the active model to Sonnet automatically is expected and pre-approved.
+- For sizeable changes, land the work as a sequence of small, individually-green commits on a feature branch (not directly on `main`), then open one PR.
