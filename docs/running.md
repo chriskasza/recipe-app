@@ -18,6 +18,18 @@ software.
 Developing against the app instead? See [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the
 from-source path (Python 3.11 + a clone).
 
+## Port convention
+
+| Port | Role |
+|------|------|
+| 3141 | Production — the canonical port for a standalone deployment |
+| 3142 | Development — `recipes run-dev` default |
+
+If you run both a production instance and a local development build on the same machine, keep
+them on their respective ports to avoid collisions. The repo's `docker-compose.yml` reads
+`RECIPE_APP_PORT` from `.env` and defaults to 3141; copy `.env.example` to `.env` to get the 3142 
+development default. See [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the dev setup details.
+
 ## Quick start — Docker ✅
 
 Docker is the recommended way to run the app. The image is published to GitHub Container Registry
@@ -95,61 +107,67 @@ Code CLI is **not** in the image — it runs on your host with your own account.
 
 A fully in-app URL importer is planned (see [`../TODO.md`](../TODO.md)); this skill is the interim path.
 
-## Choosing which modules to run 🔜 (planned)
+## Choosing which modules to run ✅
 
-Today the image runs a **single combined service** (web UI + SQLite mirror), so `docker compose up`
-gives you everything. The modular toggling below is the **target design** — it lands with the
-*Modular foundations* stage in [`../TODO.md`](../TODO.md). It will work through two coordinated switches:
+The image runs the **web UI + SQLite mirror** by default (`docker compose up`), and additional
+services are available as opt-in Docker Compose profiles. This is the *Modular foundations* stage
+landed in [`../TODO.md`](../TODO.md). It works through two coordinated switches:
 
 ### 1. docker-compose profiles
 
-Each module becomes an opt-in service guarded by a profile, so you run only what you want:
+The `app` service is always on. Opt-in services are guarded by a profile, so you run only what you
+want:
 
 ```yaml
-# Target shape — not yet in docker-compose.yml
 services:
-  web:                       # HTMX/Jinja UI (default frontend)
-    profiles: ["web"]
+  app:                       # default frontend (HTMX/Jinja web UI) — always on
+    build: .
+    image: recipe-app
     # …
-  api:                       # REST/JSON API (shared data contract)
-    profiles: ["api"]
+
+  cli:                       # operator CLI as a one-shot
+    image: recipe-app        # reuses the app image
+    profiles: ["cli"]
     # …
-  ai:                        # Ollama-backed assistance
-    profiles: ["ai"]
-    # …
+
+  # api / ai: planned (Stage M3 / AI stage)
 ```
 
 ```bash
-# Pick your modules at launch:
-docker compose --profile web up -d                 # just the simple UI
-docker compose --profile web --profile api up -d   # UI + REST API
-docker compose --profile api --profile ai up -d    # headless API + AI
+# Default: just start the web UI
+docker compose up -d
+
+# Opt-in CLI one-shot (skips boot sync; runs a single command then exits)
+docker compose --profile cli run --rm cli recipes validate
+docker compose --profile cli run --rm cli recipes doctor
 ```
 
 ### 2. pyproject optional-dependency groups
 
-For lean local installs, dependencies will be split into extras so you don't pull FastAPI or an LLM
-client unless you need them:
+Dependencies are split into extras so you don't pull FastAPI or an LLM client unless you need them:
 
 ```bash
 pip install -e ".[core]"        # parser/serializer/validator only — no web stack
-pip install -e ".[web]"         # the HTMX/Jinja app
-pip install -e ".[api]"         # the REST API
+pip install -e ".[web]"         # the HTMX/Jinja app (includes cli + importer)
+pip install -e ".[importer]"    # recipe payload writer + curl_cffi (for the URL skill)
 pip install -e ".[all,dev]"     # everything, for development
 ```
 
-Planned modules and how you'll enable them:
+`.[api]` is a placeholder for Stage M3 (routers not yet built). There is no `.[ai]` extra yet.
+
+Modules and how you enable them:
 
 | Module | Status | Enabled by |
 |---|---|---|
-| Web UI (HTMX/Jinja) | ✅ today: always on | 🔜 `--profile web` / `.[web]` |
+| Web UI (HTMX/Jinja) | ✅ | `docker compose up` / `.[web]` |
 | SQLite mirror + sync | ✅ | bundled with web/api |
-| REST/JSON API | 🔜 | `--profile api` / `.[api]` |
+| Operator CLI | ✅ | `--profile cli` / `.[cli]` |
+| REST/JSON API | 🔜 | `--profile api` / `.[api]` (Stage M3) |
 | React SPA | 🔜 | served by web or its own profile |
 | Static Site Generator | 🔜 | `recipes build-site` (no service) |
 | URL importer (in-app) | 🔜 | bundled; interim = `recipe-from-url` skill |
 | Meal planner | 🔜 | bundled with web/api |
-| AI assistance | 🔜 | `--profile ai` / `.[ai]` |
+| AI assistance | 🔜 | `--profile ai` / `.[ai]` (AI stage) |
 
 ## The operator CLI
 
