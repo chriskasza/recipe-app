@@ -17,9 +17,8 @@ Architectural principles apply to every stage:
 4. Serializer roundtrip is byte-stable.
 5. Modules are optional and removable; `app/core/` stays a dependency-free library.
 
-For what has already shipped, see the **Project status** section of [`README.md`](README.md) and the
-module-status table in [`docs/architecture.md`](docs/architecture.md). This file tracks only the work
-that is still ahead.
+For what has already shipped, see the module-status table in
+[`docs/architecture.md`](docs/architecture.md). This file tracks only the work that is still ahead.
 
 ---
 
