@@ -27,13 +27,22 @@ So this skill **always** writes through `recipes save-recipe` (the app's operato
 
 ### Python execution rule
 
-**Always run Python through the container — never the host `python3`.** The host has no `.venv`. All Python work (HTML parsing, extraction scripts, save-recipe) runs via:
+**Always run Python through the container — never the host `python3`.** The host has no `.venv`. All Python work (HTML parsing, extraction scripts, save-recipe) runs via the container.
+
+**Available libraries (this is the whole list — don't reach for anything else):** `curl_cffi`, `pydantic`, `ruamel.yaml`, `ulid`, plus the full Python standard library. The container has **no** `bs4`/BeautifulSoup, `lxml`, `requests`, `html5lib`, or `selectolax`. Do not write a script that imports them — it will `ImportError` and stall the run. Parse with the stdlib instead:
+
+- **JSON-LD (the primary extraction path) needs no HTML parser at all** — pull the `<script type="application/ld+json">` blocks and `json.loads` them.
+- **HTML fallback:** use stdlib `html.parser` (`HTMLParser`) or targeted `re`. That's enough for grabbing an `<h1>`, an `og:image`, or a recipe container's text.
+
+**Run scripts as files, never as inline `python -c`.** Write the script to `tmp/` on the host (visible in the container at `/app/tmp/`, and `Write(tmp/*)` is pre-allowed) and invoke it as:
 
 ```bash
-docker compose exec -T app python ...
+docker compose exec -T app python /app/tmp/script.py
 ```
 
-For extraction scripts, write them to `tmp/` on the host (visible in the container at `/app/tmp/`) and invoke them as `docker compose exec -T app python /app/tmp/script.py`. The HTML fetched in Step 1 is at `tmp/recipe-page.html` on the host = `/app/tmp/recipe-page.html` in the container.
+Why files, not `-c`: a multi-line `python -c '...'` that contains a comment trips a Bash safety heuristic ("newline followed by `#` inside a quoted argument"), which forces a manual permission prompt **even though the command matches the allowlist** — defeating autonomous operation. Writing the script to a `tmp/*.py` file avoids the heuristic entirely and runs unprompted (`docker compose *` is allowlisted). Reserve inline `-c` for trivial single-line, comment-free probes (e.g. `python -c "import json,sys; print(len(sys.argv))"`); anything with a newline or a `#` goes in a file.
+
+The HTML fetched in Step 1 is at `tmp/recipe-page.html` on the host = `/app/tmp/recipe-page.html` in the container.
 
 ### Step 1: Fetch the page
 
@@ -46,21 +55,26 @@ Why not `WebFetch` anywhere in this ladder: it sends a fixed bot user agent you 
 ```bash
 curl -sL --compressed \
   -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36' \
+  -w '\nHTTP %{http_code}, %{size_download} bytes\n' \
   '<url>' -o tmp/recipe-page.html
 ```
 
 This clears UA-sniffing blocks. It does **not** clear bot walls that fingerprint the TLS/JA3 handshake (Cloudflare, PerimeterX, DataDome — e.g. food52.com), because curl's TLS signature doesn't look like a real browser's. For those you'll get a challenge/CAPTCHA page or a 403 → escalate.
 
-**Tier 2 — `curl_cffi` (TLS impersonation).** `curl_cffi` replays a real Chrome TLS/JA3 fingerprint, so it sails past the fingerprint-based walls that block plain curl. It's bundled in the app image, so run it through the container's Python. `tmp/` is mounted at `/app/tmp/` in the container, so write directly there:
+**Tier 2 — `curl_cffi` (TLS impersonation).** `curl_cffi` replays a real Chrome TLS/JA3 fingerprint, so it sails past the fingerprint-based walls that block plain curl. It's bundled in the app image, so run it through the container's Python. Per the Python execution rule, write the fetch script to a file rather than inline `-c`. `Write` `tmp/fetch.py` with:
 
-```bash
-docker compose exec -T app python -c '
+```python
 import sys
 from curl_cffi import requests
 r = requests.get(sys.argv[1], impersonate="chrome", timeout=30)
 sys.stderr.write(f"HTTP {r.status_code}\n")
 open("/app/tmp/recipe-page.html", "w").write(r.text)
-' '<url>'
+```
+
+Then run it (`tmp/` is mounted at `/app/tmp/` in the container, so the script and its output both land there):
+
+```bash
+docker compose exec -T app python /app/tmp/fetch.py '<url>'
 ```
 
 This assumes the `app` service is already up. If `docker compose exec` reports the container isn't running, **stop and tell the user** to start it (`docker compose up -d app`) — don't start it yourself. If this returns a challenge page or 403, the wall is checking something curl_cffi can't fake (a real session cookie, a solved JS challenge) → escalate to the human.
@@ -140,7 +154,11 @@ When in doubt, leave the numeric/unit fields off and keep only `name` + `origina
 
 ### Step 3: Build the JSON payload
 
-Write a single JSON object matching the command's payload schema (full reference below). Save it to `tmp/recipe-payload.json` (repo-root `tmp/`, which is mounted at `/app/tmp/` in the container), then pass it to the command via stdin.
+Write a single JSON object matching the command's payload schema (full reference below). Save it to `tmp/recipe-payload.json` (repo-root `tmp/`, which is mounted at `/app/tmp/` in the container).
+
+Use the `Write` tool — but **always `Read` `tmp/recipe-payload.json` first** (even if the file doesn't exist; an error is fine). The `Write` tool requires a prior `Read` of any pre-existing file and will fail without it.
+
+Then pass it to the command via stdin.
 
 Skip any field you don't have data for — empty/null fields are dropped on output. **Don't fabricate**: if the page doesn't give a cuisine, don't guess one.
 
@@ -148,7 +166,7 @@ Skip any field you don't have data for — empty/null fields are dropped on outp
 
 If the page exposes a hero image (JSON-LD `image`, an `og:image` meta tag, or the main recipe `<img>`), download it so the recipe ships with a local copy instead of a fragile remote URL.
 
-Name the file after the slug the recipe will get — the normalized title, or the explicit `slug` you're passing for a non-ASCII title (so the filename and the recipe stay in lockstep). Pick the extension from the image URL (`.jpg`, `.jpeg`, `.png`, `.webp`); default to `.jpg` if the URL has none. Download with curl and a browser user agent (CDNs hotlink-block bot agents), creating `recipes/images/` if needed:
+Name the file after the slug the recipe will get — the normalized title, or the explicit `slug` you're passing for a non-ASCII title (so the filename and the recipe stay in lockstep). Pick the extension from the image URL (`.jpg`, `.jpeg`, `.png`, `.webp`); default to `.jpg` if the URL has none. Download with curl and a browser user agent (CDNs hotlink-block bot agents). `recipes/images/` already exists — don't `mkdir` it; the `--create-dirs` flag below is a harmless no-op safety net, not a cue to run a separate directory-creation command:
 
 ```bash
 curl -sL --compressed \
