@@ -10,8 +10,11 @@ WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY app/ ./app/
 COPY .claude/skills/recipe-from-url/ ./.claude/skills/recipe-from-url/
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENV PYTHONUNBUFFERED=1 \
     RECIPES_DIR=/app/recipes \
     DATA_DIR=/app/data
 EXPOSE 3141
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3141"]
