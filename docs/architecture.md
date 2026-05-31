@@ -44,6 +44,7 @@ swapped without touching the recipes.
 | `app/core/` (shared infra) | Schema, parse, serialize, validate | ✅ available |
 | **Dynamic app** — SQLite mirror + sync | Derived FTS5 index, idempotent sync | ✅ available |
 | **Dynamic app** — Web UI (HTMX/Jinja) | Default zero-build frontend | ✅ available |
+| **Dynamic app** — Auth (`app/auth/`) | Public read; login-gated CRUD. File-backed users outside the rebuildable DB | ✅ available |
 | **Dynamic app** — REST/JSON API | Shared data contract for frontends | 🔜 planned |
 | **Dynamic app** — React SPA | Optional richer frontend on the API | 🔜 planned |
 | **Static Site Generator** | Renders the corpus → static HTML, no DB | 🔜 planned |
@@ -206,3 +207,18 @@ docker compose --profile cli run --rm cli recipes validate
 
 This shipped in the Modular foundations stage. The default `docker compose up` is unchanged for
 existing deployments. See [`running.md`](running.md) for the full usage guide.
+
+### Why auth credentials live in a file, not the SQLite mirror
+
+To expose the app on the internet, read access stays public but every write is gated behind a
+login. The natural place for `(username, password_hash)` would be a table in `recipes.db` — but
+that DB is **derived and rebuildable**: `recipes rebuild-index` drops and recreates it from the
+Markdown corpus, which would wipe the credentials. So auth state lives in `$DATA_DIR/auth.json`
+(argon2 hashes via `argon2-cffi`), a sibling of `recipes.db` under the persistent data dir.
+`recipes set-password` manages it; `app.auth.store` reads/writes it with atomic replacement.
+
+Sessions use a signed cookie (Starlette `SessionMiddleware`, `HttpOnly`/`SameSite=Lax`/`Secure`).
+TLS is intentionally **not** handled in-app — a reverse proxy terminates HTTPS in front of port
+3141, matching the self-hosting norm. The gate is one dependency, `require_user`, applied to the 8
+write routes in `app/web/crud.py`; unauthenticated hits raise `AuthRequiredError`, which an
+exception handler turns into a redirect to `/login`. Read routes are untouched.

@@ -18,6 +18,10 @@ data/recipes.db
 data/recipes.db-wal
 data/recipes.db-shm
 
+# Auth state (secrets — never commit)
+data/auth.json
+data/.session_secret
+
 # Editor
 .idea/
 .vscode/
