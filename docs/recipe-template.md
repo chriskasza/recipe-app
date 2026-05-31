@@ -8,8 +8,8 @@ validation levels) lives in [`recipe-format.md`](recipe-format.md); the day-to-d
 
 - **Web UI** — click **New recipe**. It generates the `id` and timestamps and writes a
   canonical, byte-stable file for you.
-- **`recipe-from-url` skill** — paste a URL; it fetches, maps fields, and writes a draft to
-  `recipes/_drafts/`.
+- **`recipe-from-url` skill** — paste a URL; it fetches, maps fields, and writes the recipe
+  straight to `recipes/<slug>.md`.
 
 Both handle the machine fields automatically. Use the template below when you'd rather **author by
 hand**.

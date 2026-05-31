@@ -1,18 +1,18 @@
-"""Build a recipe draft from a structured payload, via the project's canonical pipeline.
+"""Save a recipe from a structured payload, via the project's canonical pipeline.
 
-Takes a :class:`DraftPayload` (one recipe), then:
+Takes a :class:`RecipePayload` (one recipe), then:
 
 1. Generates a fresh ULID, normalizes the slug, and stamps created_at/updated_at (UTC).
 2. Renders Markdown text in the canonical field order and block-style ingredients.
 3. Parses + validates via :func:`app.core.parser.parse_text` — schema errors abort the write.
 4. Roundtrips through :func:`app.core.serializer.serialize` to confirm byte-stability.
-5. Writes the result to ``<recipes_dir>/_drafts/<slug>.md``.
+5. Writes the result straight into the corpus at ``<recipes_dir>/<slug>.md``.
 
 This is the canonical write path for the ``recipe-from-url`` skill (exposed as
-``recipes build-draft``). Callers must not hand-write recipe files — everything flows
+``recipes save-recipe``). Callers must not hand-write recipe files — everything flows
 through here so the source-of-truth model in CLAUDE.md is preserved. The page fetch and
 field extraction stay the agent's job; this module only turns a finished payload into a
-validated draft.
+validated recipe file. Mistakes are corrected afterward from the web UI's edit form.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.constants import EXCLUDED_DIRS
 from app.core.ids import new_ulid, normalize_slug
 from app.core.parser import ParseError, parse_text
 from app.core.serializer import serialize
@@ -85,8 +86,8 @@ class BodyPayload(BaseModel):
     make_ahead: str | None = None
 
 
-class DraftPayload(BaseModel):
-    """One recipe to draft. Only ``title`` (and per-ingredient ``name``/``original``)
+class RecipePayload(BaseModel):
+    """One recipe to save. Only ``title`` (and per-ingredient ``name``/``original``)
     is required; everything else is optional and omitted from the file when empty."""
 
     model_config = ConfigDict(extra="ignore")
@@ -112,8 +113,8 @@ class DraftPayload(BaseModel):
 
 
 @dataclass(frozen=True)
-class DraftResult:
-    """Outcome of :func:`build_draft`. ``status`` is ``"ok"`` or ``"error"``."""
+class SaveResult:
+    """Outcome of :func:`save_recipe`. ``status`` is ``"ok"`` or ``"error"``."""
 
     status: str
     stage: str | None = None
@@ -124,7 +125,7 @@ class DraftResult:
     roundtrip_byte_stable: bool | None = None
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
-    draft: str | None = None
+    rendered: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -164,7 +165,7 @@ def _format_qty(qty: float) -> str:
     return str(int(qty)) if qty.is_integer() else str(qty)
 
 
-def render_markdown(payload: DraftPayload) -> tuple[str, str]:
+def render_markdown(payload: RecipePayload) -> tuple[str, str]:
     """Return ``(markdown_text, slug)`` for the given payload.
 
     Raises :class:`ValueError` for build-stage problems (empty title, underivable slug,
@@ -275,48 +276,63 @@ def render_markdown(payload: DraftPayload) -> tuple[str, str]:
     return text, slug
 
 
-def build_draft(payload: DraftPayload, recipes_dir: Path) -> DraftResult:
-    """Render, validate, roundtrip-check, and write a draft under ``recipes_dir/_drafts``.
+def _existing_recipe_path(recipes_dir: Path, slug: str) -> Path | None:
+    """Return the path of an existing recipe with this slug, anywhere in the tree.
 
-    Never raises for expected failures — returns a :class:`DraftResult` whose ``stage`` is
+    Slugs are globally unique by invariant, so we scan the whole corpus (skipping
+    the helper dirs in ``EXCLUDED_DIRS``) rather than only the target filename.
+    """
+    return next(
+        (
+            path
+            for path in sorted(recipes_dir.rglob(f"{slug}.md"))
+            if EXCLUDED_DIRS.isdisjoint(path.relative_to(recipes_dir).parts)
+        ),
+        None,
+    )
+
+
+def save_recipe(payload: RecipePayload, recipes_dir: Path) -> SaveResult:
+    """Render, validate, roundtrip-check, and write a recipe to ``recipes_dir/<slug>.md``.
+
+    Never raises for expected failures — returns a :class:`SaveResult` whose ``stage`` is
     one of ``build``, ``parse``, ``validate``, or ``write`` on error, or ``ok`` on success.
     """
-    drafts_dir = recipes_dir / "_drafts"
-
     try:
         text, slug = render_markdown(payload)
     except ValueError as exc:
-        return DraftResult(status="error", stage="build", message=str(exc))
+        return SaveResult(status="error", stage="build", message=str(exc))
 
     try:
         doc, issues = parse_text(text)
     except ParseError as exc:
-        return DraftResult(status="error", stage="parse", message=str(exc), draft=text)
+        return SaveResult(status="error", stage="parse", message=str(exc), rendered=text)
 
     errors = [str(i) for i in issues if i.level is IssueLevel.ERROR]
     warnings = [str(i) for i in issues if i.level is IssueLevel.WARNING]
     if errors:
-        return DraftResult(
-            status="error", stage="validate", errors=errors, warnings=warnings, draft=text
+        return SaveResult(
+            status="error", stage="validate", errors=errors, warnings=warnings, rendered=text
         )
 
     canonical = serialize(doc)
     roundtrip_clean = canonical == text
 
-    out_path = drafts_dir / f"{slug}.md"
-    if out_path.exists():
-        return DraftResult(
+    existing = _existing_recipe_path(recipes_dir, slug)
+    if existing is not None:
+        return SaveResult(
             status="error",
             stage="write",
-            message=f"draft already exists: {out_path}",
+            message=f"recipe already exists: {existing}",
             slug=slug,
             warnings=warnings,
         )
 
-    drafts_dir.mkdir(parents=True, exist_ok=True)
+    out_path = recipes_dir / f"{slug}.md"
+    recipes_dir.mkdir(parents=True, exist_ok=True)
     out_path.write_text(canonical, encoding="utf-8")
 
-    return DraftResult(
+    return SaveResult(
         status="ok",
         path=str(out_path),
         slug=slug,
@@ -326,8 +342,8 @@ def build_draft(payload: DraftPayload, recipes_dir: Path) -> DraftResult:
     )
 
 
-def to_report(result: DraftResult) -> dict[str, Any]:
-    """Map a :class:`DraftResult` to the machine-readable JSON report the skill parses."""
+def to_report(result: SaveResult) -> dict[str, Any]:
+    """Map a :class:`SaveResult` to the machine-readable JSON report the skill parses."""
     if result.ok:
         return {
             "status": "ok",
@@ -345,6 +361,6 @@ def to_report(result: DraftResult) -> dict[str, Any]:
         report["errors"] = result.errors
     if result.stage in ("validate", "write"):
         report["warnings"] = result.warnings
-    if result.draft is not None:
-        report["draft"] = result.draft
+    if result.rendered is not None:
+        report["rendered"] = result.rendered
     return report

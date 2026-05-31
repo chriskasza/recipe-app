@@ -6,6 +6,7 @@ services:
     volumes:
       - ./recipes:/app/recipes
       - ./data:/app/data
+      - ./tmp:/app/tmp
     environment:
       RECIPES_DIR: /app/recipes
       DATA_DIR: /app/data

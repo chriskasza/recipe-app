@@ -47,7 +47,7 @@ swapped without touching the recipes.
 | **Dynamic app** — REST/JSON API | Shared data contract for frontends | 🔜 planned |
 | **Dynamic app** — React SPA | Optional richer frontend on the API | 🔜 planned |
 | **Static Site Generator** | Renders the corpus → static HTML, no DB | 🔜 planned |
-| **URL importer** | URL → draft recipe | 🟡 write half in-app (`recipes build-draft` / `app/importer/draft.py`); the `recipe-from-url` skill still does fetch + extraction. Deterministic in-app URL extraction planned |
+| **URL importer** | URL → recipe file | 🟡 write half in-app (`recipes save-recipe` / `app/importer/save.py`); the `recipe-from-url` skill still does fetch + extraction. Deterministic in-app URL extraction planned |
 | **Meal planner** | Weekly scheduling, shopping lists | 🔜 planned |
 | **AI assistance** | LLM provider + retrieval + grounding | 🔜 planned |
 
@@ -100,7 +100,7 @@ through the canonical pipeline — and the mirror is always rebuildable from the
 | `app/api/` (planned) | REST/JSON contract | Reuses `app/db/queries.py` for reads and a shared write/service layer (extracted from `app/web/`) for writes. The data contract both frontends consume. |
 | `ssg/` (planned) | Static HTML from the corpus | The "simple renderer." Reads files directly; no DB. |
 | `web-spa/` (planned) | React SPA | Optional frontend; talks only to `app/api/`. |
-| `app/importer/` | payload → draft Recipe | `draft.py` backs `recipes build-draft`: renders a `DraftPayload` through the canonical pipeline and writes `_drafts/<slug>.md`. URL fetch/extraction still done by the `recipe-from-url` skill. |
+| `app/importer/` | payload → Recipe file | `save.py` backs `recipes save-recipe`: renders a `RecipePayload` through the canonical pipeline and writes `<slug>.md` straight into the corpus. URL fetch/extraction still done by the `recipe-from-url` skill. |
 | `app/ai/` (planned) | LLM provider, retrieval, grounding | Retrieves from DB; grounds answers on canonical Markdown. |
 | `app/cli.py` | Operator commands | `validate`, `sync`, `rebuild-index`, `search`, `show`, `doctor`. |
 
