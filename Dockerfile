@@ -3,7 +3,8 @@ WORKDIR /build
 RUN pip install --no-cache-dir --upgrade pip
 COPY pyproject.toml ./
 COPY app/ ./app/
-RUN pip install --no-cache-dir --prefix=/install .
+ARG INSTALL_EXTRA=web
+RUN pip install --no-cache-dir --prefix=/install ".[${INSTALL_EXTRA}]"
 
 FROM python:3.11-slim
 WORKDIR /app
@@ -13,6 +14,7 @@ COPY .claude/skills/recipe-from-url/ ./.claude/skills/recipe-from-url/
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENV PYTHONUNBUFFERED=1 \
+    APP_ROLE=web \
     RECIPES_DIR=/app/recipes \
     DATA_DIR=/app/data
 EXPOSE 3141
