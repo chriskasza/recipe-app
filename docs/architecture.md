@@ -190,5 +190,5 @@ Two coordinated switches let a deployment include only the modules it wants:
   one image can run as the web app, the API, a CLI/worker, or the SSG build.
 
 This mechanism is **not yet implemented** — today the image runs a single combined service. See
-[`GETTING-STARTED.md`](../GETTING-STARTED.md) for current vs. target usage and [`TODO.md`](../TODO.md)
+[`running.md`](running.md) for current vs. target usage and [`TODO.md`](../TODO.md)
 for the enabling stage.

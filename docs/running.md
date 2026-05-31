@@ -1,38 +1,28 @@
-# Getting started
+# Running recipe-app
 
 How to run recipe-app over your recipe library, and how you'll choose which modules to include.
 
-The system is built from optional [modules](docs/architecture.md) layered on one core: a folder of
+The system is built from optional [modules](architecture.md) layered on one core: a folder of
 Markdown recipe files. For authoring and organizing that folder, see
-[`docs/managing-recipes.md`](docs/managing-recipes.md). This guide is about **running** the
+[`managing-recipes.md`](managing-recipes.md). This guide is about **running** the
 software.
 
 > **Module status legend:** ✅ available now · 🔜 planned (mechanism designed, not yet built).
 
 ## Prerequisites
 
+- Docker + Docker Compose.
+- A GitHub account with access to the published image (for authenticating to GHCR).
 - A directory of recipe files for `$RECIPES_DIR` (can start empty).
-- **Docker path:** Docker + Docker Compose, and a GitHub account with access to the private image.
-- **Local dev path:** Python 3.11 and a clone of this repo.
 
-## Quick start — local dev ✅
-
-```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-
-# Point at your recipes (defaults to ./recipes/, a gitignored dev scratch dir)
-export RECIPES_DIR=./recipes
-recipes sync          # build the SQLite mirror from your files
-recipes run-dev       # http://127.0.0.1:3141/
-recipes doctor        # versions, recipe count, db count, last sync
-```
+Developing against the app instead? See [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the
+from-source path (Python 3.11 + a clone).
 
 ## Quick start — Docker ✅
 
-The image is published to GitHub Container Registry on every push to `main`. No need to clone this
-repo — authenticate once, then run from any machine.
+Docker is the recommended way to run the app. The image is published to GitHub Container Registry
+on every push to `main` — no need to clone this repo or install a Python toolchain. Authenticate
+once, then run from any machine.
 
 ### 1. Authenticate to GHCR (once per machine)
 
@@ -79,15 +69,11 @@ your project directory. To update to a newer image:
 docker compose pull && docker compose up -d
 ```
 
-### Building from source (contributors)
+## Running from source (development)
 
-If you're working on the app itself:
-
-```bash
-docker compose build
-docker compose up -d
-curl http://localhost:3141/healthz
-```
+To develop against the app — a local venv install, the operator CLI without the `docker compose
+exec` prefix, building the image from source, and the quality gates — see
+[`../CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 ## Importing recipes with Claude Code (the URL importer, interim) 🟡
 
@@ -107,13 +93,13 @@ Code CLI is **not** in the image — it runs on your host with your own account.
    The recipe lands directly at `./recipes/<slug>.md` via the mounted volume; the skill then runs
    `recipes sync` so the library picks it up. Notice an issue? Fix it from the web UI's edit form.
 
-A fully in-app URL importer is planned (see [`TODO.md`](TODO.md)); this skill is the interim path.
+A fully in-app URL importer is planned (see [`../TODO.md`](../TODO.md)); this skill is the interim path.
 
 ## Choosing which modules to run 🔜 (planned)
 
 Today the image runs a **single combined service** (web UI + SQLite mirror), so `docker compose up`
 gives you everything. The modular toggling below is the **target design** — it lands with the
-*Modular foundations* stage in [`TODO.md`](TODO.md). It will work through two coordinated switches:
+*Modular foundations* stage in [`../TODO.md`](../TODO.md). It will work through two coordinated switches:
 
 ### 1. docker-compose profiles
 
@@ -165,9 +151,32 @@ Planned modules and how you'll enable them:
 | Meal planner | 🔜 | bundled with web/api |
 | AI assistance | 🔜 | `--profile ai` / `.[ai]` |
 
+## The operator CLI
+
+`recipes` is the operator surface for the corpus and its derived state. Run it inside the container
+with `docker compose exec app`:
+
+```bash
+docker compose exec app recipes validate    # parse + validate every recipe; nonzero exit on errors
+docker compose exec app recipes sync         # build the SQLite mirror from $RECIPES_DIR
+docker compose exec app recipes sync         # idempotent — second run reports 0 changes
+docker compose exec app recipes rebuild-index            # drop the DB and rebuild from scratch
+docker compose exec app recipes search eggplant          # FTS5 query
+docker compose exec app recipes search "tomato sauce"    # multi-word, rank-ordered
+docker compose exec app recipes show miso-glazed-eggplant # pretty-print a recipe from the DB
+docker compose exec app recipes doctor       # versions, recipe count, db count, last sync
+```
+
+The container runs `recipes sync` automatically on startup, so the library reflects your files
+without a manual step. The SQLite mirror lives at `$DATA_DIR/recipes.db` (bind-mounted to `./data/`).
+Wipe it any time — the next `recipes sync` reproduces it from `$RECIPES_DIR`.
+
+(Running from source instead? Drop the `docker compose exec app` prefix — see
+[`../CONTRIBUTING.md`](../CONTRIBUTING.md).)
+
 ## Next steps
 
-- [`docs/managing-recipes.md`](docs/managing-recipes.md) — author and organize your library.
-- [`docs/recipe-template.md`](docs/recipe-template.md) — copy-me recipe skeleton.
-- [`docs/architecture.md`](docs/architecture.md) — the module map and decision records.
-- [`TODO.md`](TODO.md) — the roadmap and what's coming next.
+- [`managing-recipes.md`](managing-recipes.md) — author and organize your library.
+- [`recipe-template.md`](recipe-template.md) — copy-me recipe skeleton.
+- [`architecture.md`](architecture.md) — the module map and decision records.
+- [`../TODO.md`](../TODO.md) — the roadmap and what's coming next.

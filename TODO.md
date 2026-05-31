@@ -7,7 +7,7 @@ Work is delivered in validated stages. Each stage ends with a working commit and
 The project is a **modular system layered on one durable core** — a repository of Markdown recipe
 files (the only source of truth). Each capability is an optional module that reads/writes the
 corpus through the canonical pipeline. See [`docs/architecture.md`](docs/architecture.md) for the
-module map, statuses, and decision records, and [`GETTING-STARTED.md`](GETTING-STARTED.md) for how
+module map, statuses, and decision records, and [`docs/running.md`](docs/running.md) for how
 modules are (eventually) toggled per deployment.
 
 Architectural principles apply to every stage:
@@ -39,7 +39,7 @@ Make modules selectable without changing the default single-service behavior.
 - `docker-compose.yml` `profiles:` so services are opt-in (e.g. `--profile web --profile api`).
 - Parameterize the Dockerfile entrypoint (env/arg) so one image can run as web / api / cli-worker /
   ssg-build. Default `docker compose up` stays equivalent to today.
-- Update `GETTING-STARTED.md` to flip the toggling docs from "Planned" to "Available now".
+- Update `docs/running.md` to flip the toggling docs from "Planned" to "Available now".
 - Verify: existing single-service run is unchanged; a lean `pip install -e ".[core]"` imports
   `app.core` without FastAPI present.
 
