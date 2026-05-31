@@ -18,6 +18,18 @@ software.
 Developing against the app instead? See [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the
 from-source path (Python 3.11 + a clone).
 
+## Port convention
+
+| Port | Role |
+|------|------|
+| 3141 | Production — the canonical port for a standalone deployment |
+| 3142 | Development — `recipes run-dev` default and `docker compose up` in the repo clone |
+
+If you run both a production instance and a local development build on the same machine, keep
+them on their respective ports to avoid collisions. The repo's `docker-compose.yml` reads
+`RECIPE_APP_PORT` from `.env` and defaults to 3142; a standalone deployment without a `.env`
+defaults to 3141. See [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the dev setup details.
+
 ## Quick start — Docker ✅
 
 Docker is the recommended way to run the app. The image is published to GitHub Container Registry

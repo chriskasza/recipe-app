@@ -233,7 +233,7 @@ def _print_save_human(result: SaveResult, display_path: str | None) -> None:
 
 
 @app.command("run-dev")
-def run_dev(host: str = "127.0.0.1", port: int = 3141) -> None:
+def run_dev(host: str = "127.0.0.1", port: int = 3142) -> None:
     """Run uvicorn in dev mode with autoreload."""
     import uvicorn
 
