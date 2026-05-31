@@ -35,7 +35,9 @@ A clean data contract both frontends consume.
 - Extract a shared write/service layer from `app/web/crud.py` + `app/web/forms.py` (form/markdown
   build, `_write_and_sync`) so web and API share one write path — no duplicated file I/O or sync.
 - JSON schemas from the Pydantic models; OpenAPI served by FastAPI.
-- Decide auth posture (likely none / single-user / token) and document it.
+- Auth: reuse the existing web gate (public read, login-gated writes via `require_user`; see
+  `app/web/auth.py` + `app/auth/`). The API needs an equivalent for non-browser clients — decide
+  between reusing the session cookie and adding a token/Authorization scheme, and document it.
 - Tests: read endpoints against `populated_db`; write endpoints against the `crud_client` pattern;
   roundtrip + sync idempotency preserved.
 
@@ -103,6 +105,8 @@ the command can take a `<url>`:
 
 ## Out of scope (for now)
 
-- Multi-user accounts / sharing.
+- Multi-tenant accounts / sharing. (Login accounts exist — multiple credentials can gate CRUD —
+  but they all edit one shared corpus. Per-user libraries, per-recipe ownership, and sharing are
+  out of scope.)
 - Cloud hosting / sync beyond `git push`.
 - Mobile-native clients.

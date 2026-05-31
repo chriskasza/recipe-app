@@ -23,7 +23,9 @@ See [`docs/architecture.md`](docs/architecture.md) for the full module map, prin
 ## What works today
 
 Available now: the recipe corpus, `app/core` (parse/serialize/validate), the SQLite/FTS5 mirror
-with idempotent sync, and the HTMX/Jinja web UI with full CRUD. Planned: a REST/JSON API, a React
+with idempotent sync, and the HTMX/Jinja web UI with full CRUD. Browsing is public; creating and
+editing recipes is gated behind a login (see [Authentication](docs/running.md#authentication)), so
+the app is safe to expose on the internet behind an HTTPS reverse proxy. Planned: a REST/JSON API, a React
 SPA, a static-site generator, an in-app URL importer (interim: the `recipe-from-url` skill), a meal
 planner, and AI assistance. See the [module status table](docs/architecture.md#module-status) for
 the authoritative breakdown.
@@ -34,6 +36,7 @@ the authoritative breakdown.
 - Pydantic v2, `mypy --strict`, `ruff`
 - SQLite + FTS5
 - HTMX + Alpine.js + Pico.css (via CDN) for the UI
+- argon2 password hashing + signed-cookie sessions for login-gated CRUD
 - (later) React SPA on a REST API; Ollama (`llama3.2:3b`) as the default local LLM
 
 ## Quick start

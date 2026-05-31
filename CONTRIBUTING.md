@@ -38,6 +38,15 @@ recipes run-dev           # http://127.0.0.1:3142/
 recipes doctor            # versions, recipe count, db count, last sync
 ```
 
+To exercise login-gated CRUD locally, create an account and disable the
+`Secure` cookie flag (the dev server is plain http, so a `Secure` cookie would
+never be sent back):
+
+```bash
+recipes set-password dev               # prompts for a password
+COOKIE_SECURE=false recipes run-dev    # so the session cookie works over http
+```
+
 To build and run the Docker image from source:
 
 ```bash
@@ -66,13 +75,15 @@ recipe-app/
 │   ├── db/           # SQLite schema, sync, FTS5, library + facet queries
 │   ├── web/          # FastAPI routes, Jinja templates, MarkdownIt filter (HTMX UI)
 │   │   ├── forms.py  # FormData, parse_form, build_markdown
-│   │   └── crud.py   # /new, /r/{slug}/edit, /archive, /unarchive
-│   ├── templates/    # base, index, _facets, _results, recipe, edit, _form
+│   │   ├── crud.py   # /new, /r/{slug}/edit, /archive, /unarchive (login-gated)
+│   │   └── auth.py   # /login, /logout
+│   ├── auth/         # file-backed user store (argon2 hashes in data/auth.json)
+│   ├── templates/    # base, index, _facets, _results, recipe, edit, _form, login
 │   ├── static/       # style.css (cards / chips / form layout / print)
 │   ├── api/          # REST/JSON API                                       — planned
 │   ├── importer/     # payload → recipe file (recipes save-recipe)         — write half done
 │   ├── ai/           # LLM provider, retrieval, grounding                  — planned
-│   ├── cli.py        # operator CLI (Typer)
+│   ├── cli.py        # operator CLI (Typer) — incl. set-password / list-users / delete-user
 │   ├── config.py     # path/env settings
 │   └── main.py       # FastAPI app — /healthz, /static, web router
 ├── web-spa/          # React SPA on the REST API                          — planned

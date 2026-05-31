@@ -103,7 +103,8 @@ through the canonical pipeline — and the mirror is always rebuildable from the
 | `web-spa/` (planned) | React SPA | Optional frontend; talks only to `app/api/`. |
 | `app/importer/` | payload → Recipe file | `save.py` backs `recipes save-recipe`: renders a `RecipePayload` through the canonical pipeline and writes `<slug>.md` straight into the corpus. URL fetch/extraction still done by the `recipe-from-url` skill. |
 | `app/ai/` (planned) | LLM provider, retrieval, grounding | Retrieves from DB; grounds answers on canonical Markdown. |
-| `app/cli.py` | Operator commands | `validate`, `sync`, `rebuild-index`, `search`, `show`, `doctor`. |
+| `app/auth/` | Login credential store | `{username: argon2_hash}` in `data/auth.json` (atomic writes). Outside the rebuildable DB. Read/written via `app/auth/store.py`; login/logout routes in `app/web/auth.py`. |
+| `app/cli.py` | Operator commands | `validate`, `sync`, `rebuild-index`, `search`, `show`, `doctor`, `save-recipe`, `set-password`, `list-users`, `delete-user`. |
 
 ## Architectural decisions
 
@@ -222,3 +223,32 @@ TLS is intentionally **not** handled in-app — a reverse proxy terminates HTTPS
 3141, matching the self-hosting norm. The gate is one dependency, `require_user`, applied to the 8
 write routes in `app/web/crud.py`; unauthenticated hits raise `AuthRequiredError`, which an
 exception handler turns into a redirect to `/login`. Read routes are untouched.
+
+#### Why no CSRF tokens
+
+CSRF defense rests on two properties rather than synchronizer tokens:
+
+- **`SameSite=Lax` on the session cookie.** Lax withholds the cookie on *all* cross-site
+  subrequests — including `fetch`/XHR and form POSTs — and only sends it on top-level GET
+  navigations. A forged cross-origin POST therefore arrives with no session and is redirected to
+  login.
+- **All mutations are POST.** No state changes on GET, so the one request type Lax does allow
+  cross-site can't trigger a write. The cookie is also host-only (no `Domain`), so sibling
+  subdomains can't ride on it.
+
+This is adequate for a single-corpus app whose only writable content (recipe Markdown, rendered
+trusted via `| md | safe`) is authored by logged-in users. Token-based CSRF would be worth adding
+if untrusted content ingestion or genuine multi-tenant use is introduced.
+
+#### Hardening notes
+
+- **Login regenerates the session** (`request.session.clear()` before setting the user) as
+  defense-in-depth against fixation.
+- **Constant-time login** (`app/auth/store.py::verify`): always runs an argon2 verification — against
+  a dummy hash when the username is unknown — so response timing doesn't reveal which usernames
+  exist.
+- **The persisted session secret is written `0o600`.** Set `SESSION_SECRET` explicitly in
+  production; otherwise a random secret is generated once and stored at `data/.session_secret`.
+- **The `next` redirect target** is validated same-origin (`_safe_next`) and URL-encoded into the
+  login URL.
+- **Rate limiting** is delegated to the reverse proxy (documented in `running.md`), not done in-app.
