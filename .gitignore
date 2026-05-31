@@ -13,10 +13,9 @@ venv/
 htmlcov/
 .coverage
 
-# Runtime state: derived DB (rebuildable) + auth secrets. Never canonical —
-# nothing here is committed except the .gitkeep that preserves the directory.
-data/*
-!data/.gitkeep
+# Runtime state: derived DB (rebuildable) + auth secrets. Never canonical, and
+# the app recreates the directory on startup, so the whole thing is ignored.
+data/
 
 # Editor
 .idea/
