@@ -8,7 +8,7 @@ How to develop against recipe-app. For running the app over your own recipe libr
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[all,dev]"
 ```
 
 Run tools via `.venv/bin/` directly (e.g. `.venv/bin/pytest`) — never as `python -m <tool>`.
