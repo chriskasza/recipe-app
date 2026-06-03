@@ -19,4 +19,4 @@ ENV PYTHONUNBUFFERED=1 \
     DATA_DIR=/app/data
 EXPOSE 3141
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3141"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3141", "--proxy-headers", "--forwarded-allow-ips=*"]
