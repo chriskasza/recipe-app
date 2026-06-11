@@ -12,9 +12,10 @@ import io
 import logging
 from datetime import UTC, datetime
 from pathlib import Path, PureWindowsPath
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import HTTPException
+from pydantic import BaseModel, ConfigDict, Field
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from app.core.constants import EXCLUDED_DIRS
@@ -24,10 +25,38 @@ from app.core.serializer import _yaml, serialize
 from app.core.validator import IssueLevel, ValidationIssue
 from app.db import sync as db_sync
 
-if TYPE_CHECKING:
-    from app.web.forms import FormData
-
 logger = logging.getLogger(__name__)
+
+
+class RecipeDraft(BaseModel):
+    """JSON-native intermediate form used to build a recipe's Markdown file.
+
+    Produced either by ``app.web.forms.form_to_draft`` (from an HTML form) or
+    directly from an API request body. ``build_markdown`` consumes this and
+    knows nothing about HTML forms or JSON.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str
+    summary: str | None = None
+    cuisine: str | None = None
+    meal_type: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    dietary: list[str] = Field(default_factory=list)
+    equipment: list[str] = Field(default_factory=list)
+    prep_minutes: int | None = Field(default=None, ge=0)
+    cook_minutes: int | None = Field(default=None, ge=0)
+    total_minutes: int | None = Field(default=None, ge=0)
+    servings: int | None = Field(default=None, ge=0)
+    yield_note: str | None = None
+    source_url: str | None = None
+    source_attribution: str | None = None
+    image_url: str | None = None
+    favorite: bool = False
+    folder: str = ""
+    ingredients: list[dict[str, Any]] = Field(default_factory=list)
+    body: str = ""
 
 
 def find_recipe_file(recipes_dir: Path, slug: str) -> Path | None:
@@ -122,7 +151,7 @@ def _parse_int(value: str) -> int | None:
         return None
 
 
-def _validate_url(value: str, field: str) -> ValidationIssue | None:
+def _validate_url(value: str | None, field: str) -> ValidationIssue | None:
     """Reject URLs whose scheme is not http or https."""
     if value and not value.startswith(("https://", "http://")):
         return ValidationIssue(
@@ -145,7 +174,7 @@ def _flow_seq(items: list[str]) -> CommentedSeq:
 
 
 def build_markdown(
-    form: FormData,
+    draft: RecipeDraft,
     *,
     slug: str,
     existing_id: str | None,
@@ -153,46 +182,36 @@ def build_markdown(
     existing_archived: bool,
     existing_nutrition: Any,
 ) -> tuple[str, list[ValidationIssue]]:
-    """Build the canonical Markdown file text from form data.
+    """Build the canonical Markdown file text from a recipe draft.
 
     Returns ``(text, pre_errors)``. If pre_errors is non-empty, text is ``""``
-    and the caller should re-render the form without touching the filesystem.
+    and the caller should report the issues without touching the filesystem.
 
     We use the same ``_yaml()`` settings as ``serializer.py`` so the output is
     roundtrip-stable: parse → serialize produces byte-identical output.
     """
     pre_errors: list[ValidationIssue] = []
 
-    # Parse ingredients YAML first — fail fast before building anything else
-    ingredients_seq: CommentedSeq | None = None
-    if form.ingredients_yaml.strip():
-        try:
-            parsed = _yaml().load(io.StringIO(form.ingredients_yaml))
-            if not isinstance(parsed, list):
-                raise ValueError("expected a YAML list of ingredient mappings")
-            seq = CommentedSeq(parsed)
-            seq.fa.set_block_style()
-            for item in seq:
-                if hasattr(item, "fa"):
-                    item.fa.set_block_style()
-            ingredients_seq = seq
-        except Exception as exc:
-            pre_errors.append(
-                ValidationIssue(
-                    IssueLevel.ERROR,
-                    "ingredients.yaml",
-                    f"could not parse ingredients YAML: {exc}",
-                    "ingredients",
-                )
-            )
-
-    for url_field, url_value in (("image_url", form.image_url), ("source_url", form.source_url)):
+    for url_field, url_value in (
+        ("image_url", draft.image_url),
+        ("source_url", draft.source_url),
+    ):
         issue = _validate_url(url_value, url_field)
         if issue:
             pre_errors.append(issue)
 
     if pre_errors:
         return "", pre_errors
+
+    ingredients_seq: CommentedSeq | None = None
+    if draft.ingredients:
+        seq = CommentedSeq()
+        for item in draft.ingredients:
+            cm_item = CommentedMap(item)
+            cm_item.fa.set_block_style()
+            seq.append(cm_item)
+        seq.fa.set_block_style()
+        ingredients_seq = seq
 
     now_str = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     recipe_id = existing_id if existing_id is not None else new_ulid()
@@ -206,65 +225,53 @@ def build_markdown(
     cm = CommentedMap()
     cm["id"] = recipe_id
     cm["slug"] = slug
-    cm["title"] = form.title
+    cm["title"] = draft.title
 
-    if form.summary:
-        cm["summary"] = form.summary
-    if form.cuisine:
-        cm["cuisine"] = form.cuisine
-
-    meal_type = form.meal_type
-    tags = _split_csv(form.tags)
-    dietary = form.dietary
-    equipment = _split_csv(form.equipment)
+    if draft.summary:
+        cm["summary"] = draft.summary
+    if draft.cuisine:
+        cm["cuisine"] = draft.cuisine
 
     # Flow-style for short lists of plain scalars (matches corpus style)
-    if meal_type:
-        cm["meal_type"] = _flow_seq(meal_type)
-    if tags:
-        cm["tags"] = _flow_seq(tags)
-    if dietary:
-        cm["dietary"] = _flow_seq(dietary)
+    if draft.meal_type:
+        cm["meal_type"] = _flow_seq(draft.meal_type)
+    if draft.tags:
+        cm["tags"] = _flow_seq(draft.tags)
+    if draft.dietary:
+        cm["dietary"] = _flow_seq(draft.dietary)
 
-    prep = _parse_int(form.prep_minutes)
-    cook = _parse_int(form.cook_minutes)
-    total = _parse_int(form.total_minutes)
-    servings = _parse_int(form.servings)
+    if draft.prep_minutes is not None:
+        cm["prep_minutes"] = draft.prep_minutes
+    if draft.cook_minutes is not None:
+        cm["cook_minutes"] = draft.cook_minutes
+    if draft.total_minutes is not None:
+        cm["total_minutes"] = draft.total_minutes
+    if draft.servings is not None:
+        cm["servings"] = draft.servings
+    if draft.yield_note:
+        cm["yield_note"] = draft.yield_note
 
-    if prep is not None:
-        cm["prep_minutes"] = prep
-    if cook is not None:
-        cm["cook_minutes"] = cook
-    if total is not None:
-        cm["total_minutes"] = total
-    if servings is not None:
-        cm["servings"] = servings
-    if form.yield_note:
-        cm["yield_note"] = form.yield_note
-
-    if equipment:
-        cm["equipment"] = _flow_seq(equipment)
+    if draft.equipment:
+        cm["equipment"] = _flow_seq(draft.equipment)
     if ingredients_seq is not None:
         cm["ingredients"] = ingredients_seq
     if existing_nutrition is not None:
         cm["nutrition"] = existing_nutrition
 
-    source_url = form.source_url
-    source_attr = form.source_attribution
-    if source_url or source_attr:
+    if draft.source_url or draft.source_attribution:
         src = CommentedMap()
-        if source_url:
-            src["url"] = source_url
-        if source_attr:
-            src["attribution"] = source_attr
+        if draft.source_url:
+            src["url"] = draft.source_url
+        if draft.source_attribution:
+            src["attribution"] = draft.source_attribution
         cm["source"] = src
 
     # Single hero image. Stored as a block-style list of {path} mappings to
     # match the corpus shape; carries an existing image through edits so the
     # write path no longer strips it.
-    if form.image_url:
+    if draft.image_url:
         img = CommentedMap()
-        img["path"] = form.image_url
+        img["path"] = draft.image_url
         images_seq = CommentedSeq([img])
         images_seq.fa.set_block_style()
         img.fa.set_block_style()
@@ -273,11 +280,11 @@ def build_markdown(
     cm["created_at"] = created_at_str
     cm["updated_at"] = now_str
     cm["archived"] = existing_archived
-    cm["favorite"] = form.favorite
+    cm["favorite"] = draft.favorite
 
     buf = io.StringIO()
     _yaml().dump(cm, buf)
-    return f"---\n{buf.getvalue()}---\n{form.body}", []
+    return f"---\n{buf.getvalue()}---\n{draft.body}", []
 
 
 def _write_and_sync(path: Path, text: str, recipes_dir: Path, db_path: Path) -> list[str]:

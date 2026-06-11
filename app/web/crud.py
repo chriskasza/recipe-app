@@ -21,6 +21,7 @@ from app.web.forms import (
     FormData,
     build_markdown,
     find_recipe_file,
+    form_to_draft,
     parse_form,
     resolve_new_recipe_path,
     slug_in_use,
@@ -183,8 +184,24 @@ async def new_submit(
             ),
         )
 
+    draft, draft_issues = form_to_draft(form)
+    if draft is None:
+        errors, warnings = _split_issues(draft_issues)
+        return templates.TemplateResponse(
+            request,
+            "edit.html",
+            _form_ctx(
+                mode="new",
+                form=form.as_dict(),
+                errors=errors,
+                warnings=warnings,
+                action_url="/new",
+                slug=slug,
+            ),
+        )
+
     text, build_errors = build_markdown(
-        form,
+        draft,
         slug=slug,
         existing_id=None,
         existing_created_at=None,
@@ -294,8 +311,25 @@ async def edit_submit(
     raw = await request.form()
     form = parse_form(raw)
 
+    draft, draft_issues = form_to_draft(form)
+    if draft is None:
+        errors, warnings = _split_issues(draft_issues)
+        return templates.TemplateResponse(
+            request,
+            "edit.html",
+            _form_ctx(
+                mode="edit",
+                form=form.as_dict(),
+                errors=errors,
+                warnings=warnings,
+                action_url=f"/r/{slug}/edit",
+                slug=slug,
+                recipe_title=form.title,
+            ),
+        )
+
     text, build_errors = build_markdown(
-        form,
+        draft,
         slug=slug,
         existing_id=existing_id,
         existing_created_at=existing_created_at,
