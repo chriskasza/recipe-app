@@ -27,19 +27,22 @@ For what has already shipped, see the module-status table in
 These enabling stages make the system genuinely modular. They unblock the frontend and renderer
 modules below.
 
-## Stage M3 — REST/JSON API module
+## Stage M3 — REST/JSON API module ✅ done
 
 A clean data contract both frontends consume.
 
-- `app/api/` routers reusing `app/db/queries.py` for reads (library search, facets, recipe detail).
-- Extract a shared write/service layer from `app/web/crud.py` + `app/web/forms.py` (form/markdown
-  build, `_write_and_sync`) so web and API share one write path — no duplicated file I/O or sync.
-- JSON schemas from the Pydantic models; OpenAPI served by FastAPI.
-- Auth: reuse the existing web gate (public read, login-gated writes via `require_user`; see
-  `app/web/auth.py` + `app/auth/`). The API needs an equivalent for non-browser clients — decide
-  between reusing the session cookie and adding a token/Authorization scheme, and document it.
-- Tests: read endpoints against `populated_db`; write endpoints against the `crud_client` pattern;
-  roundtrip + sync idempotency preserved.
+- `app/api/` routers reusing `app/db/queries.py` for reads (library search, facets, recipe detail)
+  and `app/services/recipes.py` for writes.
+- Shared write/service layer (`app/services/recipes.py`) extracted from `app/web/crud.py` +
+  `app/web/forms.py` — web and API share one write path through `build_markdown` → `_write_and_sync`
+  → `sync_one`.
+- JSON schemas from Pydantic models (`app/api/schemas.py`); OpenAPI served by FastAPI at `/docs`.
+- Auth: reads are public (matching web). Writes require a Bearer token (`app/api/deps.py::require_token`,
+  `app/auth/tokens.py`, `recipes create-token|list-tokens|revoke-token`) — independent of the web
+  session cookie. See `docs/architecture.md` ("Why the API uses bearer tokens").
+- Tests: `tests/test_api_read.py` (read endpoints against `populated_db`), `tests/test_api_write.py`
+  (write endpoints against the `api_client` fixture, including the session-cookie-rejection case),
+  `tests/test_auth_tokens.py`. Roundtrip + sync idempotency preserved.
 
 ## Stage M4 — React SPA module
 

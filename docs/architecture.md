@@ -26,7 +26,7 @@ swapped without touching the recipes.
 ┌─────────┐  ┌───────────────────────────┐  ┌──────────┐  ┌───────────┐  ┌────────────┐
 │  Static │  │      Dynamic app          │  │   URL    │  │   Meal    │  │     AI     │
 │  Site   │  │  SQLite/FTS5 mirror + sync│  │ importer │  │  planner  │  │ assistance │
-│  Gen.   │  │  ├─ REST/JSON API   (plan)│  │          │  │           │  │            │
+│  Gen.   │  │  ├─ REST/JSON API      ✅ │  │          │  │           │  │            │
 │ (static │  │  ├─ Web UI HTMX/Jinja  ✅ │  │ skill    │  │ SQLite-   │  │ LLM +      │
 │  HTML)  │  │  └─ React SPA       (plan)│  │ (interim)│  │ only state│  │ retrieval  │
 │ planned │  │                           │  │          │  │  planned  │  │  planned   │
@@ -45,7 +45,7 @@ swapped without touching the recipes.
 | **Dynamic app** — SQLite mirror + sync | Derived FTS5 index, idempotent sync | ✅ available |
 | **Dynamic app** — Web UI (HTMX/Jinja) | Default zero-build frontend | ✅ available |
 | **Dynamic app** — Auth (`app/auth/`) | Public read; login-gated CRUD. File-backed users outside the rebuildable DB | ✅ available |
-| **Dynamic app** — REST/JSON API | Shared data contract for frontends | 🔜 planned |
+| **Dynamic app** — REST/JSON API | Shared data contract for frontends | ✅ available (`app/api/`, full CRUD parity, Bearer-token writes) |
 | **Dynamic app** — React SPA | Optional richer frontend on the API | 🔜 planned |
 | **Static Site Generator** | Renders the corpus → static HTML, no DB | 🔜 planned |
 | **URL importer** | URL → recipe file | 🟡 write half in-app (`recipes save-recipe` / `app/importer/save.py`); the `recipe-from-url` skill still does fetch + extraction. Deterministic in-app URL extraction planned |
@@ -98,13 +98,14 @@ through the canonical pipeline — and the mirror is always rebuildable from the
 | `app/core/` | Schema, parsing, serialization, validation | The contract. Roundtrip is byte-stable. No web/db dependencies. |
 | `app/db/` | Derived SQLite tables + FTS5 | Wiped freely. `rebuild-index` recreates from scratch. `queries.py` is the typed read interface reused by the CLI, web layer, and (planned) API. |
 | `app/web/` | HTTP, HTML rendering, forms (HTMX/Jinja UI) | Reads from DB via `queries.py`. Writes go through `forms.build_markdown → core.serializer → db.sync.sync_one`. |
-| `app/api/` (planned) | REST/JSON contract | Reuses `app/db/queries.py` for reads and a shared write/service layer (extracted from `app/web/`) for writes. The data contract both frontends consume. |
+| `app/api/` | REST/JSON contract (`/api/v1`) | Reuses `app/db/queries.py` for reads and `app/services/recipes.py` (shared with `app/web/`) for writes. Reads are public; writes require a Bearer token (`app/api/deps.py::require_token`). The data contract both frontends consume. |
+| `app/services/` | Shared write/service layer | `recipes.py`: `build_markdown`, `_write_and_sync`, `create_recipe`/`update_recipe`/`set_archived`/`set_favorite` returning `WriteOutcome`/raising `RecipeNotFoundError`. Used by both `app/web/crud.py` and `app/api/recipes.py` — one write path through the canonical pipeline. |
 | `ssg/` (planned) | Static HTML from the corpus | The "simple renderer." Reads files directly; no DB. |
 | `web-spa/` (planned) | React SPA | Optional frontend; talks only to `app/api/`. |
 | `app/importer/` | payload → Recipe file | `save.py` backs `recipes save-recipe`: renders a `RecipePayload` through the canonical pipeline and writes `<slug>.md` straight into the corpus. URL fetch/extraction still done by the `recipe-from-url` skill. |
 | `app/ai/` (planned) | LLM provider, retrieval, grounding | Retrieves from DB; grounds answers on canonical Markdown. |
 | `app/auth/` | Login credential store | `{username: argon2_hash}` in `data/auth.json` (atomic writes). Outside the rebuildable DB. Read/written via `app/auth/store.py`; login/logout routes in `app/web/auth.py`. |
-| `app/cli.py` | Operator commands | `validate`, `sync`, `rebuild-index`, `search`, `show`, `doctor`, `save-recipe`, `set-password`, `list-users`, `delete-user`. |
+| `app/cli.py` | Operator commands | `validate`, `sync`, `rebuild-index`, `search`, `show`, `doctor`, `save-recipe`, `set-password`, `list-users`, `delete-user`, `create-token`, `list-tokens`, `revoke-token`. |
 
 ## Architectural decisions
 
@@ -123,7 +124,7 @@ Meal plans are personal scheduling state. They reference recipes but don't descr
 ### Why two frontends on one shared REST API
 
 We keep **both** an HTMX/Jinja UI and a React SPA, and both consume a single REST/JSON API
-(`app/api/`, planned).
+(`app/api/`).
 
 - The **HTMX/Jinja UI** needs no JavaScript build step and renders server-side. It is the
   lowest-friction default — it works in a stripped deployment, prints well, and is easy to reason
@@ -252,3 +253,42 @@ if untrusted content ingestion or genuine multi-tenant use is introduced.
 - **The `next` redirect target** is validated same-origin (`_safe_next`) and URL-encoded into the
   login URL.
 - **Rate limiting** is delegated to the reverse proxy (documented in `running.md`), not done in-app.
+
+### Why the API uses bearer tokens (web keeps cookies)
+
+`app/api/` reads are public, matching the web UI. For writes, the API needs an auth scheme for
+non-browser clients (scripts, the future SPA's build tooling, CI) — reusing the session cookie
+doesn't fit:
+
+- **No CSRF surface to manage.** The web UI's CSRF story (`SameSite=Lax` + POST-only mutations,
+  see above) relies on the browser automatically attaching/withholding a cookie. A JSON API
+  consumed by arbitrary HTTP clients doesn't get that for free, and a bearer token in an
+  `Authorization` header is never sent automatically by a browser, so there's no analogous forgery
+  vector to defend against.
+- **Independent of login sessions.** A token can be minted for one script/integration and revoked
+  without touching user accounts or invalidating browser sessions.
+- **Explicit, auditable surface.** Tokens are named (`recipes_<random>`), listed via
+  `recipes list-tokens`, and revoked individually via `recipes revoke-token <name>`.
+
+`app/api/deps.py::require_token` uses `HTTPBearer(auto_error=False)` (documents the scheme in
+OpenAPI) and **ignores the session cookie entirely** — a logged-in browser session does not grant
+API write access; `tests/test_api_write.py` asserts this explicitly.
+
+**Storage: SHA-256, not argon2.** Unlike passwords, API tokens are high-entropy random secrets
+(`recipes_` + 32 bytes from `secrets.token_urlsafe`) chosen by the server, not low-entropy
+human-chosen strings. There's no brute-force surface to slow down with a deliberately expensive
+hash, so a SHA-256 digest (`hmac.compare_digest` for constant-time comparison) gives O(1)
+verification without the per-request argon2 CPU cost. `app/auth/tokens.py` mirrors
+`app/auth/store.py`'s atomic-write pattern; tokens live in `DATA_DIR/api_tokens.json`, a sibling of
+`auth.json`, for the same reason — outside the rebuildable SQLite mirror.
+
+**`app/importer/save.py::RecipePayload` was examined and not reused** for the API's write schema.
+Its shape diverges from the shared web/API write path: it allows a slug override, structures the
+body as discrete sections rather than a single Markdown blob, has its own render pipeline (not
+`app.services.recipes.build_markdown`), and has no `favorite`/`folder` fields. `app/api/schemas.py`
+defines `RecipeWriteRequest`/`IngredientIn` instead, mirroring `RecipeDraft` so `to_draft()` feeds
+the same `create_recipe`/`update_recipe` functions the web CRUD layer uses.
+
+**SPA token acquisition is deferred to Stage M4.** The React SPA will need its own way to obtain
+write credentials (likely reusing the session cookie via a same-origin proxy, or a
+user-facing "create API token" UI) — not yet decided.
