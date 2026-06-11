@@ -411,7 +411,9 @@ def create_recipe(draft: RecipeDraft, *, recipes_dir: Path, db_path: Path) -> Wr
     return WriteOutcome(slug=slug, path=path, sync_errors=sync_errors)
 
 
-def update_recipe(slug: str, draft: RecipeDraft, *, recipes_dir: Path, db_path: Path) -> WriteOutcome:
+def update_recipe(
+    slug: str, draft: RecipeDraft, *, recipes_dir: Path, db_path: Path
+) -> WriteOutcome:
     """Build and write an updated recipe file for the existing ``slug``.
 
     Raises ``RecipeNotFoundError`` if no file matches ``slug``. Preserves the
@@ -447,7 +449,9 @@ def set_archived(slug: str, value: bool, *, recipes_dir: Path, db_path: Path) ->
 
     Raises ``RecipeNotFoundError`` if no file matches ``slug``.
     """
-    return _flip_bool_field(slug, field="archived", value=value, recipes_dir=recipes_dir, db_path=db_path)
+    return _flip_bool_field(
+        slug, field="archived", value=value, recipes_dir=recipes_dir, db_path=db_path
+    )
 
 
 def set_favorite(slug: str, value: bool, *, recipes_dir: Path, db_path: Path) -> WriteOutcome:
@@ -455,4 +459,6 @@ def set_favorite(slug: str, value: bool, *, recipes_dir: Path, db_path: Path) ->
 
     Raises ``RecipeNotFoundError`` if no file matches ``slug``.
     """
-    return _flip_bool_field(slug, field="favorite", value=value, recipes_dir=recipes_dir, db_path=db_path)
+    return _flip_bool_field(
+        slug, field="favorite", value=value, recipes_dir=recipes_dir, db_path=db_path
+    )

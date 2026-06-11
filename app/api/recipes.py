@@ -36,7 +36,9 @@ DEFAULT_PAGE_SIZE = 24
 MAX_PAGE_SIZE = 100
 
 
-def _normalize_minutes(max_minutes: int | None, min_minutes: int | None) -> tuple[int | None, int | None]:
+def _normalize_minutes(
+    max_minutes: int | None, min_minutes: int | None
+) -> tuple[int | None, int | None]:
     """Slider extremes mean "no bound" — drop them, mirroring the web library."""
     if min_minutes is not None and min_minutes <= 0:
         min_minutes = None
@@ -141,13 +143,21 @@ def get_recipe(slug: str, db_path: Annotated[Path, Depends(get_db_path)]) -> Rec
 
 
 def _issue_dict(issue: ValidationIssue) -> dict[str, str]:
-    return {"level": str(issue.level), "code": issue.code, "message": issue.message, "path": issue.path}
+    return {
+        "level": str(issue.level),
+        "code": issue.code,
+        "message": issue.message,
+        "path": issue.path,
+    }
 
 
 def _raise_for_outcome(outcome: WriteOutcome) -> None:
     """Raise the appropriate HTTPException for a failed ``WriteOutcome``. No-op if ok."""
     if outcome.sync_errors:
-        raise HTTPException(status_code=500, detail={"code": "sync_error", "message": "; ".join(outcome.sync_errors)})
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "sync_error", "message": "; ".join(outcome.sync_errors)},
+        )
     if outcome.issues:
         status = 409 if any(i.code == "slug.collision" for i in outcome.issues) else 422
         raise HTTPException(

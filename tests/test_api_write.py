@@ -50,9 +50,7 @@ def test_session_cookie_alone_is_not_accepted(crud_client: TestClient) -> None:
     assert resp.status_code == 401
 
 
-def test_create_recipe_success(
-    api_client: tuple[TestClient, str], crud_recipes_dir: Path
-) -> None:
+def test_create_recipe_success(api_client: tuple[TestClient, str], crud_recipes_dir: Path) -> None:
     client, token = api_client
     resp = client.post(
         "/api/v1/recipes",
