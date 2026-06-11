@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -13,10 +12,10 @@ from fastapi.templating import Jinja2Templates
 
 from app.core.ids import normalize_slug
 from app.core.parser import parse_file
-from app.core.serializer import _yaml, serialize
+from app.core.serializer import _yaml
 from app.core.validator import IssueLevel, ValidationIssue
 from app.core.vocab import DIETARY_FLAGS, MEAL_TYPES
-from app.db import sync as db_sync
+from app.services.recipes import _flip_bool_field, _write_and_sync
 from app.web.deps import get_db_path, get_recipes_dir, get_templates, require_user
 from app.web.forms import (
     FormData,
@@ -107,26 +106,6 @@ def _prefill_form(doc: Any) -> FormData:
         ingredients_yaml=_ingredients_to_yaml(doc),
         body=doc.raw_body or "",
     )
-
-
-def _write_and_sync(path: Path, text: str, recipes_dir: Path, db_path: Path) -> list[str]:
-    """Write text to path, sync to DB, restore original on failure.
-
-    Returns a list of error strings (empty on success).
-    """
-    original: str | None = None
-    if path.is_file():
-        original = path.read_text(encoding="utf-8")
-
-    path.write_text(text, encoding="utf-8")
-    report = db_sync.sync_one(path, recipes_dir, db_path)
-    if not report.ok:
-        if original is not None:
-            path.write_text(original, encoding="utf-8")
-        else:
-            path.unlink(missing_ok=True)
-        return report.errors
-    return []
 
 
 # ---------------------------------------------------------------------------
@@ -419,26 +398,3 @@ def _safe_next(next_url: str, fallback: str) -> str:
     if next_url.startswith("/") and not next_url.startswith("//"):
         return next_url
     return fallback
-
-
-_BOOL_FIELDS: frozenset[str] = frozenset({"archived", "favorite"})
-
-
-def _flip_bool_field(
-    slug: str, *, field: str, value: bool, recipes_dir: Path, db_path: Path
-) -> None:
-    """Toggle a boolean frontmatter flag by mutating raw_yaml and re-serializing."""
-    if field not in _BOOL_FIELDS:
-        raise ValueError(f"field {field!r} is not an allowed boolean frontmatter key")
-    path = find_recipe_file(recipes_dir, slug)
-    if path is None:
-        raise HTTPException(status_code=404, detail=f"No recipe file for slug {slug!r}")
-
-    doc, _ = parse_file(path)
-    doc.raw_yaml[field] = value
-    doc.raw_yaml["updated_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    text = serialize(doc)
-    sync_errors = _write_and_sync(path, text, recipes_dir, db_path)
-    if sync_errors:
-        raise HTTPException(status_code=500, detail="; ".join(sync_errors))
