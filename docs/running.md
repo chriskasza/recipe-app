@@ -153,6 +153,32 @@ that is not a substitute for throttling). Rate-limit it at the reverse proxy,
 which blocks abuse before it reaches the app — e.g. Caddy's `rate_limit`
 directive or nginx's `limit_req` on the `/login` path.
 
+## REST/JSON API ✅
+
+The app exposes a JSON API at `/api/v1`, with interactive OpenAPI docs at `/docs`. Reads
+(`GET /api/v1/recipes`, `/api/v1/facets`, `/api/v1/recipes/{slug}`) are public, matching the web
+UI. Writes (`POST /api/v1/recipes`, `PUT /api/v1/recipes/{slug}`, and the `archived`/`favorite`
+toggles) require a Bearer token — independent of the web login session.
+
+Create a token with the operator CLI (the plaintext is shown once):
+
+```bash
+docker compose exec app recipes create-token my-script
+docker compose exec app recipes list-tokens
+docker compose exec app recipes revoke-token my-script
+```
+
+Then call the API:
+
+```bash
+curl http://localhost:3141/api/v1/recipes?q=eggplant
+
+curl -X POST http://localhost:3141/api/v1/recipes \
+  -H "Authorization: Bearer recipes_..." \
+  -H "Content-Type: application/json" \
+  -d @recipe.json
+```
+
 ## Choosing which modules to run ✅
 
 The image runs the **web UI + SQLite mirror** by default (`docker compose up`), and additional
@@ -176,7 +202,8 @@ services:
     profiles: ["cli"]
     # …
 
-  # api / ai: planned (Stage M3 / AI stage)
+  # ai: planned (AI stage). The REST/JSON API is bundled into the `app` service —
+  # no separate profile needed.
 ```
 
 ```bash
@@ -199,7 +226,7 @@ pip install -e ".[importer]"    # recipe payload writer + curl_cffi (for the URL
 pip install -e ".[all,dev]"     # everything, for development
 ```
 
-`.[api]` is a placeholder for Stage M3 (routers not yet built). There is no `.[ai]` extra yet.
+There is no `.[ai]` extra yet.
 
 Modules and how you enable them:
 
@@ -208,7 +235,7 @@ Modules and how you enable them:
 | Web UI (HTMX/Jinja) | ✅ | `docker compose up` / `.[web]` |
 | SQLite mirror + sync | ✅ | bundled with web/api |
 | Operator CLI | ✅ | `--profile cli` / `.[cli]` |
-| REST/JSON API | 🔜 | `--profile api` / `.[api]` (Stage M3) |
+| REST/JSON API | ✅ | bundled with `docker compose up` (mounted at `/api/v1`, no separate profile) |
 | React SPA | 🔜 | served by web or its own profile |
 | Static Site Generator | 🔜 | `recipes build-site` (no service) |
 | URL importer (in-app) | 🔜 | bundled; interim = `recipe-from-url` skill |

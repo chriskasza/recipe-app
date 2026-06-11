@@ -137,3 +137,38 @@ def crud_client(
         yield client
     finally:
         app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------------------
+# API fixtures — Bearer token auth, no session cookie
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def api_tokens_path(tmp_path: Path) -> tuple[Path, str]:
+    """A temp api_tokens.json seeded with one token. Returns (path, plaintext)."""
+    from app.auth import tokens
+
+    path = tmp_path / "api_tokens.json"
+    plaintext = tokens.create_token(path, "test")
+    return path, plaintext
+
+
+@pytest.fixture
+def api_client(
+    crud_db: Path,
+    crud_recipes_dir: Path,
+    auth_users_path: Path,
+    api_tokens_path: tuple[Path, str],
+) -> Iterator[tuple[TestClient, str]]:
+    """TestClient with API overrides applied, no session login. Yields (client, token)."""
+    from app.main import app
+    from app.web.deps import get_tokens_path
+
+    _crud_overrides(crud_db, crud_recipes_dir, auth_users_path)
+    tokens_path, plaintext = api_tokens_path
+    app.dependency_overrides[get_tokens_path] = lambda: tokens_path
+    try:
+        yield TestClient(app), plaintext
+    finally:
+        app.dependency_overrides.clear()

@@ -47,6 +47,10 @@ def get_users_path(settings: Annotated[Settings, Depends(get_settings)]) -> Path
     return settings.auth_path
 
 
+def get_tokens_path(settings: Annotated[Settings, Depends(get_settings)]) -> Path:
+    return settings.tokens_path
+
+
 def current_user(request: Request) -> str | None:
     """The logged-in username, or None. Safe to call without a session."""
     return request.session.get("user")

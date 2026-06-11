@@ -27,27 +27,13 @@ For what has already shipped, see the module-status table in
 These enabling stages make the system genuinely modular. They unblock the frontend and renderer
 modules below.
 
-## Stage M3 — REST/JSON API module
-
-A clean data contract both frontends consume.
-
-- `app/api/` routers reusing `app/db/queries.py` for reads (library search, facets, recipe detail).
-- Extract a shared write/service layer from `app/web/crud.py` + `app/web/forms.py` (form/markdown
-  build, `_write_and_sync`) so web and API share one write path — no duplicated file I/O or sync.
-- JSON schemas from the Pydantic models; OpenAPI served by FastAPI.
-- Auth: reuse the existing web gate (public read, login-gated writes via `require_user`; see
-  `app/web/auth.py` + `app/auth/`). The API needs an equivalent for non-browser clients — decide
-  between reusing the session cookie and adding a token/Authorization scheme, and document it.
-- Tests: read endpoints against `populated_db`; write endpoints against the `crud_client` pattern;
-  roundtrip + sync idempotency preserved.
-
 ## Stage M4 — React SPA module
 
 Optional richer frontend on the API. HTMX/Jinja stays the default.
 
 - `web-spa/` Vite + React app in the monorepo; talks only to `app/api/`.
 - Build artifacts served statically by the app or shipped as a separate compose service/profile.
-- No data logic in the SPA — it consumes the API contract from Stage M3.
+- No data logic in the SPA — it consumes the REST/JSON API (`app/api/`, see `docs/architecture.md`).
 
 ## Stage M5 — Static Site Generator module
 
