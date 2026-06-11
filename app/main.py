@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.api import router as api_router
 from app.config import load_settings
 from app.web import router as web_router
 from app.web.deps import AuthRequiredError
@@ -27,6 +28,7 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.include_router(web_router)
+app.include_router(api_router)
 
 
 @app.exception_handler(AuthRequiredError)
