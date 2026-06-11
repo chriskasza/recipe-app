@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -10,22 +11,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from app.core.ids import normalize_slug
 from app.core.parser import parse_file
 from app.core.serializer import _yaml
 from app.core.validator import IssueLevel, ValidationIssue
 from app.core.vocab import DIETARY_FLAGS, MEAL_TYPES
-from app.services.recipes import _flip_bool_field, _write_and_sync
-from app.web.deps import get_db_path, get_recipes_dir, get_templates, require_user
-from app.web.forms import (
-    FormData,
-    build_markdown,
-    find_recipe_file,
-    form_to_draft,
-    parse_form,
-    resolve_new_recipe_path,
-    slug_in_use,
+from app.services.recipes import (
+    RecipeNotFoundError,
+    WriteOutcome,
+    create_recipe,
+    set_archived,
+    set_favorite,
+    update_recipe,
 )
+from app.web.deps import get_db_path, get_recipes_dir, get_templates, require_user
+from app.web.forms import FormData, find_recipe_file, form_to_draft, parse_form
 
 router = APIRouter()
 
@@ -70,6 +69,14 @@ def _split_issues(
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     errors = _issues_to_dicts([i for i in issues if i.level is IssueLevel.ERROR])
     warnings = _issues_to_dicts([i for i in issues if i.level is IssueLevel.WARNING])
+    return errors, warnings
+
+
+def _outcome_errors(outcome: WriteOutcome) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    errors, warnings = _split_issues(outcome.issues)
+    errors += [
+        {"level": "error", "code": "sync", "message": e, "path": ""} for e in outcome.sync_errors
+    ]
     return errors, warnings
 
 
@@ -143,46 +150,6 @@ async def new_submit(
 ) -> Response:
     raw = await request.form()
     form = parse_form(raw)
-    slug = normalize_slug(form.title) if form.title.strip() else ""
-
-    pre_errors: list[ValidationIssue] = []
-    if not form.title.strip():
-        pre_errors.append(
-            ValidationIssue(IssueLevel.ERROR, "title.empty", "Title is required", "title")
-        )
-    elif not slug:
-        pre_errors.append(
-            ValidationIssue(
-                IssueLevel.ERROR,
-                "slug.invalid",
-                "Could not derive a valid slug from the title",
-                "title",
-            )
-        )
-    elif slug_in_use(recipes_dir, slug):
-        pre_errors.append(
-            ValidationIssue(
-                IssueLevel.ERROR,
-                "slug.collision",
-                f"A recipe with slug '{slug}' already exists",
-                "slug",
-            )
-        )
-
-    if pre_errors:
-        errors, warnings = _split_issues(pre_errors)
-        return templates.TemplateResponse(
-            request,
-            "edit.html",
-            _form_ctx(
-                mode="new",
-                form=form.as_dict(),
-                errors=errors,
-                warnings=warnings,
-                action_url="/new",
-                slug=slug,
-            ),
-        )
 
     draft, draft_issues = form_to_draft(form)
     if draft is None:
@@ -196,20 +163,12 @@ async def new_submit(
                 errors=errors,
                 warnings=warnings,
                 action_url="/new",
-                slug=slug,
             ),
         )
 
-    text, build_errors = build_markdown(
-        draft,
-        slug=slug,
-        existing_id=None,
-        existing_created_at=None,
-        existing_archived=False,
-        existing_nutrition=None,
-    )
-    if build_errors:
-        errors, warnings = _split_issues(build_errors)
+    outcome = create_recipe(draft, recipes_dir=recipes_dir, db_path=db_path)
+    if not outcome.ok:
+        errors, warnings = _outcome_errors(outcome)
         return templates.TemplateResponse(
             request,
             "edit.html",
@@ -219,46 +178,11 @@ async def new_submit(
                 errors=errors,
                 warnings=warnings,
                 action_url="/new",
-                slug=slug,
+                slug=outcome.slug,
             ),
         )
 
-    path, folder_issue = resolve_new_recipe_path(recipes_dir, slug, form.folder)
-    if folder_issue is not None:
-        errors, warnings = _split_issues([folder_issue])
-        return templates.TemplateResponse(
-            request,
-            "edit.html",
-            _form_ctx(
-                mode="new",
-                form=form.as_dict(),
-                errors=errors,
-                warnings=warnings,
-                action_url="/new",
-                slug=slug,
-            ),
-        )
-    assert path is not None
-    path.parent.mkdir(parents=True, exist_ok=True)
-    sync_errors = _write_and_sync(path, text, recipes_dir, db_path)
-    if sync_errors:
-        error_dicts = [
-            {"level": "error", "code": "sync", "message": e, "path": ""} for e in sync_errors
-        ]
-        return templates.TemplateResponse(
-            request,
-            "edit.html",
-            _form_ctx(
-                mode="new",
-                form=form.as_dict(),
-                errors=error_dicts,
-                warnings=[],
-                action_url="/new",
-                slug=slug,
-            ),
-        )
-
-    return RedirectResponse(f"/r/{slug}", status_code=303)
+    return RedirectResponse(f"/r/{outcome.slug}", status_code=303)
 
 
 @router.get("/r/{slug}/edit", response_class=HTMLResponse)
@@ -298,16 +222,6 @@ async def edit_submit(
     db_path: Annotated[Path, Depends(get_db_path)],
     templates: Annotated[Jinja2Templates, Depends(get_templates)],
 ) -> Response:
-    path = find_recipe_file(recipes_dir, slug)
-    if path is None:
-        raise HTTPException(status_code=404, detail=f"No recipe file for slug {slug!r}")
-
-    existing_doc, _ = parse_file(path)
-    existing_id = existing_doc.recipe.id
-    existing_created_at = existing_doc.recipe.created_at
-    existing_archived = existing_doc.recipe.archived
-    existing_nutrition = existing_doc.raw_yaml.get("nutrition")
-
     raw = await request.form()
     form = parse_form(raw)
 
@@ -328,16 +242,13 @@ async def edit_submit(
             ),
         )
 
-    text, build_errors = build_markdown(
-        draft,
-        slug=slug,
-        existing_id=existing_id,
-        existing_created_at=existing_created_at,
-        existing_archived=existing_archived,
-        existing_nutrition=existing_nutrition,
-    )
-    if build_errors:
-        errors, warnings = _split_issues(build_errors)
+    try:
+        outcome = update_recipe(slug, draft, recipes_dir=recipes_dir, db_path=db_path)
+    except RecipeNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if not outcome.ok:
+        errors, warnings = _outcome_errors(outcome)
         return templates.TemplateResponse(
             request,
             "edit.html",
@@ -352,26 +263,24 @@ async def edit_submit(
             ),
         )
 
-    sync_errors = _write_and_sync(path, text, recipes_dir, db_path)
-    if sync_errors:
-        error_dicts = [
-            {"level": "error", "code": "sync", "message": e, "path": ""} for e in sync_errors
-        ]
-        return templates.TemplateResponse(
-            request,
-            "edit.html",
-            _form_ctx(
-                mode="edit",
-                form=form.as_dict(),
-                errors=error_dicts,
-                warnings=[],
-                action_url=f"/r/{slug}/edit",
-                slug=slug,
-                recipe_title=form.title,
-            ),
-        )
-
     return RedirectResponse(f"/r/{slug}", status_code=303)
+
+
+def _flip(
+    fn: Callable[..., WriteOutcome],
+    slug: str,
+    value: bool,
+    *,
+    recipes_dir: Path,
+    db_path: Path,
+) -> None:
+    """Apply a flag-flipping service function, translating its outcome to HTTP errors."""
+    try:
+        outcome = fn(slug, value, recipes_dir=recipes_dir, db_path=db_path)
+    except RecipeNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if outcome.sync_errors:
+        raise HTTPException(status_code=500, detail="; ".join(outcome.sync_errors))
 
 
 @router.post("/r/{slug}/archive")
@@ -381,7 +290,7 @@ def archive_recipe(
     recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
     db_path: Annotated[Path, Depends(get_db_path)],
 ) -> RedirectResponse:
-    _flip_archived(slug, archived=True, recipes_dir=recipes_dir, db_path=db_path)
+    _flip(set_archived, slug, True, recipes_dir=recipes_dir, db_path=db_path)
     return RedirectResponse(f"/r/{slug}", status_code=303)
 
 
@@ -392,15 +301,8 @@ def unarchive_recipe(
     recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
     db_path: Annotated[Path, Depends(get_db_path)],
 ) -> RedirectResponse:
-    _flip_archived(slug, archived=False, recipes_dir=recipes_dir, db_path=db_path)
+    _flip(set_archived, slug, False, recipes_dir=recipes_dir, db_path=db_path)
     return RedirectResponse(f"/r/{slug}", status_code=303)
-
-
-def _flip_archived(slug: str, *, archived: bool, recipes_dir: Path, db_path: Path) -> None:
-    """Toggle the archived flag by mutating raw_yaml and re-serializing."""
-    _flip_bool_field(
-        slug, field="archived", value=archived, recipes_dir=recipes_dir, db_path=db_path
-    )
 
 
 @router.post("/r/{slug}/favorite")
@@ -411,7 +313,7 @@ def favorite_recipe(
     db_path: Annotated[Path, Depends(get_db_path)],
     next: Annotated[str, Query()] = "",
 ) -> RedirectResponse:
-    _flip_bool_field(slug, field="favorite", value=True, recipes_dir=recipes_dir, db_path=db_path)
+    _flip(set_favorite, slug, True, recipes_dir=recipes_dir, db_path=db_path)
     return RedirectResponse(_safe_next(next, f"/r/{slug}"), status_code=303)
 
 
@@ -423,7 +325,7 @@ def unfavorite_recipe(
     db_path: Annotated[Path, Depends(get_db_path)],
     next: Annotated[str, Query()] = "",
 ) -> RedirectResponse:
-    _flip_bool_field(slug, field="favorite", value=False, recipes_dir=recipes_dir, db_path=db_path)
+    _flip(set_favorite, slug, False, recipes_dir=recipes_dir, db_path=db_path)
     return RedirectResponse(_safe_next(next, f"/r/{slug}"), status_code=303)
 
 

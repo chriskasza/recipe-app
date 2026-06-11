@@ -10,22 +10,45 @@ from __future__ import annotations
 
 import io
 import logging
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import UTC, datetime
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
-from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from app.core.constants import EXCLUDED_DIRS
-from app.core.ids import new_ulid
+from app.core.ids import new_ulid, normalize_slug
 from app.core.parser import parse_file
 from app.core.serializer import _yaml, serialize
 from app.core.validator import IssueLevel, ValidationIssue
 from app.db import sync as db_sync
 
 logger = logging.getLogger(__name__)
+
+
+class RecipeNotFoundError(Exception):
+    """Raised when no recipe file matches the given slug."""
+
+    def __init__(self, slug: str) -> None:
+        self.slug = slug
+        super().__init__(f"No recipe file for slug {slug!r}")
+
+
+@dataclass(frozen=True)
+class WriteOutcome:
+    """Result of a recipe write: the slug it concerns, plus any issues."""
+
+    slug: str
+    path: Path | None = None
+    issues: list[ValidationIssue] = dataclass_field(default_factory=list)
+    sync_errors: list[str] = dataclass_field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return not self.issues and not self.sync_errors
 
 
 class RecipeDraft(BaseModel):
@@ -312,13 +335,16 @@ _BOOL_FIELDS: frozenset[str] = frozenset({"archived", "favorite"})
 
 def _flip_bool_field(
     slug: str, *, field: str, value: bool, recipes_dir: Path, db_path: Path
-) -> None:
-    """Toggle a boolean frontmatter flag by mutating raw_yaml and re-serializing."""
+) -> WriteOutcome:
+    """Toggle a boolean frontmatter flag by mutating raw_yaml and re-serializing.
+
+    Raises ``RecipeNotFoundError`` if no file matches ``slug``.
+    """
     if field not in _BOOL_FIELDS:
         raise ValueError(f"field {field!r} is not an allowed boolean frontmatter key")
     path = find_recipe_file(recipes_dir, slug)
     if path is None:
-        raise HTTPException(status_code=404, detail=f"No recipe file for slug {slug!r}")
+        raise RecipeNotFoundError(slug)
 
     doc, _ = parse_file(path)
     doc.raw_yaml[field] = value
@@ -326,5 +352,107 @@ def _flip_bool_field(
 
     text = serialize(doc)
     sync_errors = _write_and_sync(path, text, recipes_dir, db_path)
-    if sync_errors:
-        raise HTTPException(status_code=500, detail="; ".join(sync_errors))
+    return WriteOutcome(slug=slug, path=path, sync_errors=sync_errors)
+
+
+def create_recipe(draft: RecipeDraft, *, recipes_dir: Path, db_path: Path) -> WriteOutcome:
+    """Validate, build, and write a new recipe file from ``draft``.
+
+    Returns a ``WriteOutcome`` whose ``slug`` is derived from ``draft.title``
+    (even on failure, so callers can re-render a form with that slug).
+    """
+    pre_errors: list[ValidationIssue] = []
+    slug = normalize_slug(draft.title) if draft.title.strip() else ""
+
+    if not draft.title.strip():
+        pre_errors.append(
+            ValidationIssue(IssueLevel.ERROR, "title.empty", "Title is required", "title")
+        )
+    elif not slug:
+        pre_errors.append(
+            ValidationIssue(
+                IssueLevel.ERROR,
+                "slug.invalid",
+                "Could not derive a valid slug from the title",
+                "title",
+            )
+        )
+    elif slug_in_use(recipes_dir, slug):
+        pre_errors.append(
+            ValidationIssue(
+                IssueLevel.ERROR,
+                "slug.collision",
+                f"A recipe with slug '{slug}' already exists",
+                "slug",
+            )
+        )
+
+    if pre_errors:
+        return WriteOutcome(slug=slug, issues=pre_errors)
+
+    text, build_errors = build_markdown(
+        draft,
+        slug=slug,
+        existing_id=None,
+        existing_created_at=None,
+        existing_archived=False,
+        existing_nutrition=None,
+    )
+    if build_errors:
+        return WriteOutcome(slug=slug, issues=build_errors)
+
+    path, folder_issue = resolve_new_recipe_path(recipes_dir, slug, draft.folder)
+    if folder_issue is not None:
+        return WriteOutcome(slug=slug, issues=[folder_issue])
+    assert path is not None
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sync_errors = _write_and_sync(path, text, recipes_dir, db_path)
+    return WriteOutcome(slug=slug, path=path, sync_errors=sync_errors)
+
+
+def update_recipe(slug: str, draft: RecipeDraft, *, recipes_dir: Path, db_path: Path) -> WriteOutcome:
+    """Build and write an updated recipe file for the existing ``slug``.
+
+    Raises ``RecipeNotFoundError`` if no file matches ``slug``. Preserves the
+    existing ``id``, ``created_at``, ``archived``, and ``nutrition`` fields.
+    """
+    path = find_recipe_file(recipes_dir, slug)
+    if path is None:
+        raise RecipeNotFoundError(slug)
+
+    existing_doc, _ = parse_file(path)
+    existing_id = existing_doc.recipe.id
+    existing_created_at = existing_doc.recipe.created_at
+    existing_archived = existing_doc.recipe.archived
+    existing_nutrition = existing_doc.raw_yaml.get("nutrition")
+
+    text, build_errors = build_markdown(
+        draft,
+        slug=slug,
+        existing_id=existing_id,
+        existing_created_at=existing_created_at,
+        existing_archived=existing_archived,
+        existing_nutrition=existing_nutrition,
+    )
+    if build_errors:
+        return WriteOutcome(slug=slug, path=path, issues=build_errors)
+
+    sync_errors = _write_and_sync(path, text, recipes_dir, db_path)
+    return WriteOutcome(slug=slug, path=path, sync_errors=sync_errors)
+
+
+def set_archived(slug: str, value: bool, *, recipes_dir: Path, db_path: Path) -> WriteOutcome:
+    """Set the ``archived`` flag on an existing recipe.
+
+    Raises ``RecipeNotFoundError`` if no file matches ``slug``.
+    """
+    return _flip_bool_field(slug, field="archived", value=value, recipes_dir=recipes_dir, db_path=db_path)
+
+
+def set_favorite(slug: str, value: bool, *, recipes_dir: Path, db_path: Path) -> WriteOutcome:
+    """Set the ``favorite`` flag on an existing recipe.
+
+    Raises ``RecipeNotFoundError`` if no file matches ``slug``.
+    """
+    return _flip_bool_field(slug, field="favorite", value=value, recipes_dir=recipes_dir, db_path=db_path)
