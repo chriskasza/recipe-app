@@ -27,30 +27,13 @@ For what has already shipped, see the module-status table in
 These enabling stages make the system genuinely modular. They unblock the frontend and renderer
 modules below.
 
-## Stage M3 — REST/JSON API module ✅ done
-
-A clean data contract both frontends consume.
-
-- `app/api/` routers reusing `app/db/queries.py` for reads (library search, facets, recipe detail)
-  and `app/services/recipes.py` for writes.
-- Shared write/service layer (`app/services/recipes.py`) extracted from `app/web/crud.py` +
-  `app/web/forms.py` — web and API share one write path through `build_markdown` → `_write_and_sync`
-  → `sync_one`.
-- JSON schemas from Pydantic models (`app/api/schemas.py`); OpenAPI served by FastAPI at `/docs`.
-- Auth: reads are public (matching web). Writes require a Bearer token (`app/api/deps.py::require_token`,
-  `app/auth/tokens.py`, `recipes create-token|list-tokens|revoke-token`) — independent of the web
-  session cookie. See `docs/architecture.md` ("Why the API uses bearer tokens").
-- Tests: `tests/test_api_read.py` (read endpoints against `populated_db`), `tests/test_api_write.py`
-  (write endpoints against the `api_client` fixture, including the session-cookie-rejection case),
-  `tests/test_auth_tokens.py`. Roundtrip + sync idempotency preserved.
-
 ## Stage M4 — React SPA module
 
 Optional richer frontend on the API. HTMX/Jinja stays the default.
 
 - `web-spa/` Vite + React app in the monorepo; talks only to `app/api/`.
 - Build artifacts served statically by the app or shipped as a separate compose service/profile.
-- No data logic in the SPA — it consumes the API contract from Stage M3.
+- No data logic in the SPA — it consumes the REST/JSON API (`app/api/`, see `docs/architecture.md`).
 
 ## Stage M5 — Static Site Generator module
 

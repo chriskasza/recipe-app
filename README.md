@@ -23,12 +23,13 @@ See [`docs/architecture.md`](docs/architecture.md) for the full module map, prin
 ## What works today
 
 Available now: the recipe corpus, `app/core` (parse/serialize/validate), the SQLite/FTS5 mirror
-with idempotent sync, and the HTMX/Jinja web UI with full CRUD. Browsing is public; creating and
-editing recipes is gated behind a login (see [Authentication](docs/running.md#authentication)), so
-the app is safe to expose on the internet behind an HTTPS reverse proxy. Planned: a REST/JSON API, a React
-SPA, a static-site generator, an in-app URL importer (interim: the `recipe-from-url` skill), a meal
-planner, and AI assistance. See the [module status table](docs/architecture.md#module-status) for
-the authoritative breakdown.
+with idempotent sync, the HTMX/Jinja web UI with full CRUD, and a REST/JSON API (`/api/v1`, OpenAPI
+docs at `/docs`) with full CRUD parity. Browsing and API reads are public; creating and editing
+recipes is gated behind a login on the web (see [Authentication](docs/running.md#authentication))
+and behind a Bearer token on the API (`recipes create-token`), so the app is safe to expose on the
+internet behind an HTTPS reverse proxy. Planned: a React SPA, a static-site generator, an in-app
+URL importer (interim: the `recipe-from-url` skill), a meal planner, and AI assistance. See the
+[module status table](docs/architecture.md#module-status) for the authoritative breakdown.
 
 ## Stack
 

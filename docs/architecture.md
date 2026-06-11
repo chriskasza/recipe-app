@@ -204,7 +204,9 @@ docker compose up -d
 # Opt-in CLI one-shot
 docker compose --profile cli run --rm cli recipes validate
 
-# api / ai profiles are planned (Stage M3 / AI stage)
+# ai profile is planned (AI stage); the REST/JSON API is bundled into the
+# default app service, no separate profile needed
+
 ```
 
 This shipped in the Modular foundations stage. The default `docker compose up` is unchanged for
