@@ -14,6 +14,7 @@ from rich.table import Table
 
 from app import __version__
 from app.auth import store as auth_store
+from app.auth import tokens as auth_tokens
 from app.config import load_settings
 from app.core.validator import IssueLevel
 from app.db import queries, sync
@@ -266,6 +267,45 @@ def delete_user_command(username: str) -> None:
         console.print(f"[green]✓[/green] removed {username!r}")
     else:
         console.print(f"[red]no user {username!r}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("create-token")
+def create_token_command(
+    name: Annotated[str, typer.Argument(help="Name identifying this token.")],
+) -> None:
+    """Create an API bearer token in DATA_DIR/api_tokens.json. Prints the plaintext once."""
+    settings = load_settings()
+    try:
+        plaintext = auth_tokens.create_token(settings.tokens_path, name)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from None
+    console.print(f"[green]✓[/green] created token {name!r}:")
+    console.print(plaintext)
+    console.print("[dim]This value is shown only once — store it securely.[/dim]")
+
+
+@app.command("list-tokens")
+def list_tokens_command() -> None:
+    """List API bearer tokens by name and creation time."""
+    settings = load_settings()
+    tokens = auth_tokens.load_tokens(settings.tokens_path)
+    if not tokens:
+        console.print("[dim]no tokens[/dim]")
+        return
+    for name in sorted(tokens):
+        console.print(f"{name}\t{tokens[name].get('created_at', '')}")
+
+
+@app.command("revoke-token")
+def revoke_token_command(name: str) -> None:
+    """Revoke an API bearer token."""
+    settings = load_settings()
+    if auth_tokens.revoke_token(settings.tokens_path, name):
+        console.print(f"[green]✓[/green] revoked {name!r}")
+    else:
+        console.print(f"[red]no token {name!r}[/red]")
         raise typer.Exit(code=1)
 
 

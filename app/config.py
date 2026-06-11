@@ -26,6 +26,11 @@ class Settings:
         """Credential store — kept out of the rebuildable SQLite mirror."""
         return self.data_dir / "auth.json"
 
+    @property
+    def tokens_path(self) -> Path:
+        """API token store — kept out of the rebuildable SQLite mirror."""
+        return self.data_dir / "api_tokens.json"
+
 
 def _resolve_session_secret(data_dir: Path) -> str:
     """Use SESSION_SECRET if set, else read-or-create a persisted random secret.
