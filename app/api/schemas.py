@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.queries import FacetCount, LibraryRow, RecipeDetail, RecipeIngredientRow, SearchPage
+from app.services.recipes import RecipeDraft
 
 
 class RecipeSummary(BaseModel):
@@ -164,3 +167,81 @@ class ErrorDetail(BaseModel):
 
     code: str
     message: str
+
+
+class IngredientIn(BaseModel):
+    """One ingredient line. Field order matches the corpus YAML key order."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    qty: float | None = None
+    unit: str | None = None
+    prep: str | None = None
+    optional: bool = False
+    original: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump(exclude_none=True)
+
+
+class RecipeWriteRequest(BaseModel):
+    """Request body for create/update. Mirrors ``RecipeDraft``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str
+    summary: str | None = None
+    cuisine: str | None = None
+    meal_type: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    dietary: list[str] = Field(default_factory=list)
+    equipment: list[str] = Field(default_factory=list)
+    prep_minutes: int | None = Field(default=None, ge=0)
+    cook_minutes: int | None = Field(default=None, ge=0)
+    total_minutes: int | None = Field(default=None, ge=0)
+    servings: int | None = Field(default=None, ge=0)
+    yield_note: str | None = None
+    source_url: str | None = None
+    source_attribution: str | None = None
+    image_url: str | None = None
+    favorite: bool = False
+    folder: str = ""
+    ingredients: list[IngredientIn] = Field(default_factory=list)
+    body: str = ""
+
+    def to_draft(self) -> RecipeDraft:
+        return RecipeDraft(
+            title=self.title,
+            summary=self.summary,
+            cuisine=self.cuisine,
+            meal_type=self.meal_type,
+            tags=self.tags,
+            dietary=self.dietary,
+            equipment=self.equipment,
+            prep_minutes=self.prep_minutes,
+            cook_minutes=self.cook_minutes,
+            total_minutes=self.total_minutes,
+            servings=self.servings,
+            yield_note=self.yield_note,
+            source_url=self.source_url,
+            source_attribution=self.source_attribution,
+            image_url=self.image_url,
+            favorite=self.favorite,
+            folder=self.folder,
+            ingredients=[i.to_dict() for i in self.ingredients],
+            body=self.body,
+        )
+
+
+class FlagRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    value: bool
+
+
+class WriteResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    slug: str
+    path: str

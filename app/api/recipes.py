@@ -5,11 +5,29 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from app.api.schemas import FacetCountOut, FacetsResponse, RecipeDetailResponse, SearchResponse
+from app.api.deps import require_token
+from app.api.schemas import (
+    FacetCountOut,
+    FacetsResponse,
+    FlagRequest,
+    RecipeDetailResponse,
+    RecipeWriteRequest,
+    SearchResponse,
+    WriteResponse,
+)
+from app.core.validator import ValidationIssue
 from app.db import queries
-from app.web.deps import get_db_path
+from app.services.recipes import (
+    RecipeNotFoundError,
+    WriteOutcome,
+    create_recipe,
+    set_archived,
+    set_favorite,
+    update_recipe,
+)
+from app.web.deps import get_db_path, get_recipes_dir
 from app.web.library import TIME_CEILING, SortParam, _resolve_sort
 
 router = APIRouter(prefix="/api/v1")
@@ -115,3 +133,95 @@ def get_recipe(slug: str, db_path: Annotated[Path, Depends(get_db_path)]) -> Rec
     if detail is None:
         raise HTTPException(status_code=404, detail=f"No recipe with slug {slug!r}")
     return RecipeDetailResponse.from_detail(detail)
+
+
+# ---------------------------------------------------------------------------
+# Write endpoints (Bearer token required)
+# ---------------------------------------------------------------------------
+
+
+def _issue_dict(issue: ValidationIssue) -> dict[str, str]:
+    return {"level": str(issue.level), "code": issue.code, "message": issue.message, "path": issue.path}
+
+
+def _raise_for_outcome(outcome: WriteOutcome) -> None:
+    """Raise the appropriate HTTPException for a failed ``WriteOutcome``. No-op if ok."""
+    if outcome.sync_errors:
+        raise HTTPException(status_code=500, detail={"code": "sync_error", "message": "; ".join(outcome.sync_errors)})
+    if outcome.issues:
+        status = 409 if any(i.code == "slug.collision" for i in outcome.issues) else 422
+        raise HTTPException(
+            status_code=status,
+            detail={
+                "code": "validation_error",
+                "message": "Recipe could not be saved",
+                "issues": [_issue_dict(i) for i in outcome.issues],
+            },
+        )
+
+
+def _write_response(outcome: WriteOutcome, recipes_dir: Path) -> WriteResponse:
+    assert outcome.path is not None
+    return WriteResponse(slug=outcome.slug, path=str(outcome.path.relative_to(recipes_dir)))
+
+
+@router.post("/recipes", status_code=201)
+def create_recipe_endpoint(
+    payload: RecipeWriteRequest,
+    response: Response,
+    recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
+    db_path: Annotated[Path, Depends(get_db_path)],
+    token_name: Annotated[str, Depends(require_token)],
+) -> WriteResponse:
+    outcome = create_recipe(payload.to_draft(), recipes_dir=recipes_dir, db_path=db_path)
+    _raise_for_outcome(outcome)
+    response.headers["Location"] = f"/api/v1/recipes/{outcome.slug}"
+    return _write_response(outcome, recipes_dir)
+
+
+@router.put("/recipes/{slug}")
+def update_recipe_endpoint(
+    slug: str,
+    payload: RecipeWriteRequest,
+    recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
+    db_path: Annotated[Path, Depends(get_db_path)],
+    token_name: Annotated[str, Depends(require_token)],
+) -> WriteResponse:
+    try:
+        outcome = update_recipe(slug, payload.to_draft(), recipes_dir=recipes_dir, db_path=db_path)
+    except RecipeNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _raise_for_outcome(outcome)
+    return _write_response(outcome, recipes_dir)
+
+
+@router.put("/recipes/{slug}/archived")
+def set_archived_endpoint(
+    slug: str,
+    payload: FlagRequest,
+    recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
+    db_path: Annotated[Path, Depends(get_db_path)],
+    token_name: Annotated[str, Depends(require_token)],
+) -> WriteResponse:
+    try:
+        outcome = set_archived(slug, payload.value, recipes_dir=recipes_dir, db_path=db_path)
+    except RecipeNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _raise_for_outcome(outcome)
+    return _write_response(outcome, recipes_dir)
+
+
+@router.put("/recipes/{slug}/favorite")
+def set_favorite_endpoint(
+    slug: str,
+    payload: FlagRequest,
+    recipes_dir: Annotated[Path, Depends(get_recipes_dir)],
+    db_path: Annotated[Path, Depends(get_db_path)],
+    token_name: Annotated[str, Depends(require_token)],
+) -> WriteResponse:
+    try:
+        outcome = set_favorite(slug, payload.value, recipes_dir=recipes_dir, db_path=db_path)
+    except RecipeNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _raise_for_outcome(outcome)
+    return _write_response(outcome, recipes_dir)
